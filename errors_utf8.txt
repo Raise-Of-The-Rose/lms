@@ -1,0 +1,40 @@
+src/components/ProtectedRoute.tsx(2,19): error TS1484: 'Role' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/components/ui/button.tsx(5,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/card.tsx(3,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/dialog.tsx(5,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/dialog.tsx(6,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+src/components/ui/form.tsx(16,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/form.tsx(17,23): error TS2307: Cannot find module '@/components/ui/label' or its corresponding type declarations.
+src/components/ui/input.tsx(3,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/label.tsx(4,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/table.tsx(3,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/tabs.tsx(7,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/components/ui/textarea.tsx(3,20): error TS2307: Cannot find module '@/lib/utils' or its corresponding type declarations.
+src/context/AuthContext.tsx(3,30): error TS1484: 'User' is a type and must be imported using a type-only import when 'verbatimModuleSyntax' is enabled.
+src/pages/AdminDashboard.tsx(3,20): error TS2307: Cannot find module '@/lib/firebase' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(4,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(5,23): error TS2307: Cannot find module '@/components/ui/input' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(6,26): error TS2307: Cannot find module '@/components/ui/textarea' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(7,58): error TS2307: Cannot find module '@/components/ui/card' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(8,58): error TS2307: Cannot find module '@/components/ui/tabs' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(16,8): error TS2307: Cannot find module '@/components/ui/table' or its corresponding type declarations.
+src/pages/AdminDashboard.tsx(189,52): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/AdminDashboard.tsx(198,52): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/Login.tsx(7,22): error TS2307: Cannot find module '@/lib/firebase' or its corresponding type declarations.
+src/pages/Login.tsx(8,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+src/pages/Login.tsx(9,23): error TS2307: Cannot find module '@/components/ui/input' or its corresponding type declarations.
+src/pages/Login.tsx(10,87): error TS2307: Cannot find module '@/components/ui/card' or its corresponding type declarations.
+src/pages/Login.tsx(11,25): error TS2307: Cannot find module '@/context/AuthContext' or its corresponding type declarations.
+src/pages/Login.tsx(22,11): error TS6133: 'currentUser' is declared but its value is never read.
+src/pages/Register.tsx(11,87): error TS2307: Cannot find module '@/components/ui/card' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(4,29): error TS2307: Cannot find module '@/lib/firebase' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(5,25): error TS2307: Cannot find module '@/context/AuthContext' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(6,87): error TS2307: Cannot find module '@/components/ui/card' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(7,24): error TS2307: Cannot find module '@/components/ui/button' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(8,23): error TS2307: Cannot find module '@/components/ui/input' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(9,23): error TS2307: Cannot find module '@/components/ui/label' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(17,8): error TS2307: Cannot find module '@/components/ui/dialog' or its corresponding type declarations.
+src/pages/StudentDashboard.tsx(117,108): error TS7006: Parameter 'open' implicitly has an 'any' type.
+src/pages/StudentDashboard.tsx(149,60): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/StudentDashboard.tsx(160,60): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/pages/StudentDashboard.tsx(171,60): error TS7006: Parameter 'e' implicitly has an 'any' type.
