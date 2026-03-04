@@ -16,7 +16,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, UploadCloud, QrCode, BookOpen, User, CheckCircle2, Clock } from 'lucide-react';
+import { Loader2, UploadCloud, QrCode, User, CheckCircle2, Clock } from 'lucide-react';
 
 interface Course {
     id: string;

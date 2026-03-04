@@ -1,307 +1,4 @@
-// import { useState, useEffect, useRef } from 'react';
-// import { useParams, useNavigate } from 'react-router-dom';
-// import { collection, doc, getDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
-// import { db } from '@/lib/firebase';
-// import { useAuth } from '@/context/AuthContext';
-// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-// import { Button } from '@/components/ui/button';
-// import { Progress } from "@/components/ui/progress";
-// import { CheckCircle, Play, Pause, Maximize, Loader2, Gauge, ShieldAlert, RotateCcw, RotateCw, Settings2 } from 'lucide-react';
-// import YouTube from 'react-youtube';
-// import type { YouTubeProps } from 'react-youtube';
 
-// interface Module {
-//     id: string;
-//     title: string;
-//     videoUrl: string;
-// }
-
-// interface Enrollment {
-//     id: string;
-//     progress: number;
-//     completedModules: string[];
-//     status: string;
-// }
-
-// const getYouTubeId = (url: string) => {
-//     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-//     const match = url.match(regExp);
-//     return (match && match[2].length === 11) ? match[2] : null;
-// };
-
-// const CustomVideoPlayer = ({ url, onEnded, title }: { url: string, onEnded: () => void, title: string }) => {
-//     const videoId = getYouTubeId(url);
-//     const [player, setPlayer] = useState<any>(null);
-//     const containerRef = useRef<HTMLDivElement>(null);
-
-//     const [playing, setPlaying] = useState(false);
-//     const [played, setPlayed] = useState(0);
-//     const [duration, setDuration] = useState(0);
-//     const [buffering, setBuffering] = useState(true);
-//     const [playbackRate, setPlaybackRate] = useState(1);
-//     const [quality, setQuality] = useState('Auto');
-//     const [isForceEnded, setIsForceEnded] = useState(false);
-//     const [isHovering, setIsHovering] = useState(false);
-//     const [showQualityMenu, setShowQualityMenu] = useState(false);
-
-//     const [activePlayTime, setActivePlayTime] = useState(0);
-//     const [hasPassedInitial, setHasPassedInitial] = useState(false);
-
-//     useEffect(() => {
-//         let interval: any;
-//         if (playing && player && !isForceEnded) {
-//             interval = setInterval(() => {
-//                 const current = player.getCurrentTime();
-//                 const total = player.getDuration();
-
-//                 setActivePlayTime(prev => {
-//                     const newTime = prev + 0.5;
-//                     // Permanently unlock after the first 3 seconds of play
-//                     if (newTime >= 3 && !hasPassedInitial) setHasPassedInitial(true);
-//                     return newTime;
-//                 });
-
-//                 if (total > 0) {
-//                     setPlayed(current / total);
-//                     if (current >= total - 25) {
-//                         player.pauseVideo();
-//                         setPlaying(false);
-//                         setIsForceEnded(true);
-//                         onEnded();
-//                     }
-//                 }
-//             }, 500);
-//         } else {
-//             setActivePlayTime(0);
-//         }
-//         return () => clearInterval(interval);
-//     }, [playing, player, isForceEnded, onEnded, hasPassedInitial]);
-
-//     const handlePlayPause = () => {
-//         if (!player || isForceEnded) return;
-//         playing ? player.pauseVideo() : player.playVideo();
-//         setPlaying(!playing);
-//         setShowQualityMenu(false);
-//     };
-
-//     const handleSeek = (seconds: number) => {
-//         if (!player || isForceEnded) return;
-//         player.seekTo(player.getCurrentTime() + seconds, true);
-//     };
-
-//     return (
-//         <div
-//             ref={containerRef}
-//             className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden group shadow-xl select-none font-sans"
-//             onMouseEnter={() => setIsHovering(true)}
-//             onMouseLeave={() => { setIsHovering(false); setShowQualityMenu(false); }}
-//         >
-
-//             {/* 1. YOUTUBE ENGINE */}
-//             <div className="absolute inset-0 z-0 scale-[1.02] translate-y-[1%]">
-//                 <YouTube
-//                     videoId={videoId || ''}
-//                     opts={{
-//                         height: '100%', width: '100%',
-//                         playerVars: {
-//                             autoplay: 0, controls: 0, rel: 0, modestbranding: 1,
-//                             iv_load_policy: 3, disablekb: 1, origin: window.location.origin
-//                         },
-//                     }}
-//                     onReady={(e) => { setPlayer(e.target); setDuration(e.target.getDuration()); setBuffering(false); }}
-//                     onStateChange={(e) => {
-//                         if (isForceEnded) return;
-//                         setPlaying(e.data === 1);
-//                         setBuffering(e.data === 3);
-//                     }}
-//                     className="w-full h-full pointer-events-none"
-//                 />
-//             </div>
-
-//             {/* 2. INSTANT BLACKOUT LAYER */}
-//             {/* Logic: ONLY stays black during the very first 3 seconds of the video start.
-//                 On resume, because hasPassedInitial is true, this layer is opacity-0 instantly. */}
-//             <div className={`absolute inset-0 z-20 bg-black pointer-events-none
-//                 ${(!playing || buffering || isForceEnded || (playing && !hasPassedInitial)) ? 'opacity-100' : 'opacity-0'}
-//                 ${(playing && hasPassedInitial) ? 'transition-opacity duration-300' : ''}`}
-//             />
-
-//             {/* 3. GRADIENT MASKS (Visible for 3s after any resume) */}
-//             <div className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-1000 
-//                 ${(playing && !buffering && !isForceEnded && activePlayTime < 3) ? 'opacity-100' : 'opacity-0'}`}>
-//                 <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-b from-black via-black/70 to-transparent" />
-//                 <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-black via-black/70 to-transparent" />
-//             </div>
-
-//             {/* 4. INTERACTION LAYER */}
-//             <div className="absolute inset-0 z-30 flex items-center justify-center cursor-pointer" onClick={handlePlayPause}>
-//                 {buffering && <Loader2 className="w-10 h-10 text-indigo-500 animate-spin opacity-50" />}
-
-//                 {/* Center Button: Only shows if paused OR during the initial 3s start */}
-//                 {(!playing || (playing && !hasPassedInitial)) && !buffering && !isForceEnded && (
-//                     <div className="flex flex-col items-center gap-3">
-//                         <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-//                             <Play size={24} className="text-white fill-current ml-1" />
-//                         </div>
-//                         <span className="text-indigo-400 font-bold text-[9px] uppercase tracking-[0.4em]">
-//                             {playing && !hasPassedInitial ? `SECURING CONNECTION (${Math.max(0, Math.ceil(3 - activePlayTime))}s)` : 'Resume Session'}
-//                         </span>
-//                     </div>
-//                 )}
-
-//                 {isForceEnded && (
-//                     <div className="text-center animate-in fade-in zoom-in duration-500">
-//                         <ShieldAlert className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
-//                         <h3 className="text-white font-bold text-xl tracking-tight uppercase">Authorized</h3>
-//                     </div>
-//                 )}
-//             </div>
-
-//             {/* 5. QUALITY MENU */}
-//             {showQualityMenu && (
-//                 <div className="absolute bottom-20 right-6 z-50 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-xl p-2 shadow-2xl">
-//                     {['Auto', '1080p', '720p', '480p'].map((q) => (
-//                         <button key={q} onClick={() => { setQuality(q); setShowQualityMenu(false); }}
-//                             className={`w-full text-left px-4 py-2 rounded-lg text-[10px] font-bold transition-colors ${quality === q ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-white/5'}`}>{q}</button>
-//                     ))}
-//                 </div>
-//             )}
-
-//             {/* 6. CONTROLS */}
-//             <div className={`absolute bottom-0 left-0 right-0 z-40 p-5 transition-all duration-500 
-//                 ${(playing && hasPassedInitial && !isHovering) ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
-//                 <div className="flex flex-col gap-3">
-//                     <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-//                         <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${played * 100}%` }} />
-//                     </div>
-//                     <div className="flex items-center justify-between">
-//                         <div className="flex items-center gap-5">
-//                             <div className="flex items-center gap-3">
-//                                 <button onClick={(e) => { e.stopPropagation(); handleSeek(-10); }} className="text-white/60 hover:text-white transition-colors"><RotateCcw size={18} /></button>
-//                                 <button onClick={(e) => { e.stopPropagation(); handlePlayPause(); }} className="text-white hover:text-indigo-400">
-//                                     {playing ? <Pause size={20} className="fill-current" /> : <Play size={20} className="fill-current ml-0.5" />}
-//                                 </button>
-//                                 <button onClick={(e) => { e.stopPropagation(); handleSeek(10); }} className="text-white/60 hover:text-white transition-colors"><RotateCw size={18} /></button>
-//                             </div>
-//                             <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-[9px] font-bold">
-//                                 <Gauge size={12} className="text-indigo-400" />
-//                                 {[1, 1.5, 2].map((rate) => (
-//                                     <button key={rate} onClick={(e) => { e.stopPropagation(); setPlaybackRate(rate); player?.setPlaybackRate(rate); }}
-//                                         className={`${playbackRate === rate ? 'text-indigo-400' : 'text-white/40 hover:text-white'}`}>{rate}x</button>
-//                                 ))}
-//                             </div>
-//                         </div>
-//                         <div className="flex items-center gap-4">
-//                             <button onClick={(e) => { e.stopPropagation(); setShowQualityMenu(!showQualityMenu); }}
-//                                 className={`flex items-center gap-2 px-3 py-1 rounded-lg border transition-all text-[9px] font-black uppercase tracking-widest ${showQualityMenu ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}>
-//                                 <Settings2 size={12} /> {quality}
-//                             </button>
-//                             <button onClick={(e) => {
-//                                 e.stopPropagation();
-//                                 if (!document.fullscreenElement) containerRef.current?.requestFullscreen();
-//                                 else document.exitFullscreen();
-//                             }} className="text-white/60 hover:text-white transition-colors"><Maximize size={16} /></button>
-//                         </div>
-//                     </div>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default function CourseConsumption() {
-//     const { courseId } = useParams<{ courseId: string }>();
-//     const navigate = useNavigate();
-//     const { currentUser } = useAuth();
-//     const [courseData, setCourseData] = useState<any>(null);
-//     const [modules, setModules] = useState<Module[]>([]);
-//     const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
-//     const [activeModule, setActiveModule] = useState<Module | null>(null);
-//     const [loading, setLoading] = useState(true);
-
-//     useEffect(() => {
-//         if (!currentUser || !courseId) return;
-//         const fetchData = async () => {
-//             try {
-//                 const cSnap = await getDoc(doc(db, 'courses', courseId));
-//                 if (cSnap.exists()) setCourseData(cSnap.data());
-//                 const mSnap = await getDocs(query(collection(db, `courses/${courseId}/modules`), orderBy("createdAt", "asc")));
-//                 const fetched = mSnap.docs.map(d => ({ id: d.id, ...d.data() } as Module));
-//                 setModules(fetched);
-//                 if (fetched.length > 0) setActiveModule(fetched[0]);
-//                 const eSnap = await getDocs(query(collection(db, 'enrollments'), where("studentId", "==", currentUser.uid), where("courseId", "==", courseId)));
-//                 if (!eSnap.empty) {
-//                     const data = eSnap.docs[0].data();
-//                     if (data.status === 'ENROLLED') setEnrollment({ id: eSnap.docs[0].id, ...data } as Enrollment);
-//                     else navigate('/dashboard');
-//                 } else navigate('/dashboard');
-//             } catch (e) { console.error(e); } finally { setLoading(false); }
-//         };
-//         fetchData();
-//     }, [courseId, currentUser, navigate]);
-
-//     const handleMarkComplete = async (moduleId: string) => {
-//         if (!enrollment || enrollment.completedModules.includes(moduleId)) return;
-//         const updated = [...enrollment.completedModules, moduleId];
-//         const prog = Math.round((updated.length / modules.length) * 100);
-//         await updateDoc(doc(db, 'enrollments', enrollment.id), { completedModules: updated, progress: prog });
-//         setEnrollment({ ...enrollment, completedModules: updated, progress: prog });
-//     };
-
-//     if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 text-xs tracking-widest uppercase">Initializing Stream...</div>;
-//     if (!enrollment) return null;
-
-//     return (
-//         <div className="max-w-6xl mx-auto p-6 space-y-8 font-sans bg-white min-h-screen">
-//             <div className="flex flex-col lg:flex-row gap-10">
-//                 <div className="flex-grow lg:w-2/3 space-y-6">
-//                     <header>
-//                         <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">{courseData?.title}</h1>
-//                         <p className="text-indigo-600 font-bold uppercase text-[10px] tracking-widest mt-1">Lesson Unit: {activeModule?.title}</p>
-//                     </header>
-
-//                     {activeModule && (
-//                         <div className="space-y-6">
-//                             <CustomVideoPlayer key={activeModule.id} url={activeModule.videoUrl} title={activeModule.title} onEnded={() => handleMarkComplete(activeModule.id)} />
-//                             <div className="flex justify-between items-center p-6 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-//                                 <div>
-//                                     <h4 className="text-lg font-black text-slate-900 tracking-tight italic">Stream Verified?</h4>
-//                                     <p className="text-slate-400 font-medium text-[11px] uppercase tracking-widest mt-1">Authorized progress sync</p>
-//                                 </div>
-//                                 <Button onClick={() => handleMarkComplete(activeModule.id)} disabled={enrollment.completedModules.includes(activeModule.id)} className={`px-10 py-5 rounded-xl font-bold text-sm tracking-wide shadow-lg transition-all ${enrollment.completedModules.includes(activeModule.id) ? "bg-emerald-500 text-white" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>
-//                                     {enrollment.completedModules.includes(activeModule.id) ? <CheckCircle size={18} /> : 'VALIDATE LESSON'}
-//                                 </Button>
-//                             </div>
-//                         </div>
-//                     )}
-//                 </div>
-
-//                 <div className="lg:w-1/3 space-y-6">
-//                     <div className="bg-slate-950 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
-//                         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
-//                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-4">Progression</p>
-//                         <h2 className="text-5xl font-black tracking-tighter mb-4">{enrollment.progress}<span className="text-indigo-600 text-xl">%</span></h2>
-//                         <Progress value={enrollment.progress} className="h-1.5 bg-white/5 rounded-full" />
-//                     </div>
-
-//                     <div className="bg-white rounded-3xl shadow-lg border border-slate-100 overflow-hidden">
-//                         <div className="p-5 bg-slate-50 border-b font-black uppercase text-[10px] tracking-widest text-slate-400 text-center">Stream Syllabus</div>
-//                         <div className="flex flex-col divide-y divide-slate-50 max-h-[450px] overflow-y-auto scrollbar-hide">
-//                             {modules.map((m, i) => (
-//                                 <button key={m.id} onClick={() => setActiveModule(m)} className={`w-full flex items-center gap-5 p-5 text-left transition-all ${activeModule?.id === m.id ? 'bg-indigo-50 border-l-4 border-indigo-600 shadow-inner' : 'hover:bg-slate-50 opacity-60 hover:opacity-100'}`}>
-//                                     <div className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-xs ${enrollment.completedModules.includes(m.id) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-//                                         {enrollment.completedModules.includes(m.id) ? <CheckCircle size={18} /> : i + 1}
-//                                     </div>
-//                                     <span className={`text-sm font-bold tracking-tight ${enrollment.completedModules.includes(m.id) ? 'text-slate-300' : 'text-slate-800'}`}>{m.title}</span>
-//                                 </button>
-//                             ))}
-//                         </div>
-//                     </div>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// }
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
@@ -309,7 +6,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Play, Pause, Maximize, Loader2, Gauge, ShieldAlert, RotateCcw, RotateCw, Settings2, Video, Radio } from 'lucide-react';
+import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, RotateCw, Settings2, Radio } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 interface Module {
@@ -331,13 +28,13 @@ const getYouTubeId = (url: string) => {
     return (match && match[2].length === 11) ? match[2] : null;
 };
 
-const CustomVideoPlayer = ({ url, onEnded, title }: { url: string, onEnded: () => void, title: string }) => {
+const CustomVideoPlayer = ({ url, onEnded }: { url: string, onEnded: () => void }) => {
     const videoId = getYouTubeId(url);
     const [player, setPlayer] = useState<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [playing, setPlaying] = useState(false);
     const [played, setPlayed] = useState(0);
-    const [duration, setDuration] = useState(0);
+
     const [buffering, setBuffering] = useState(true);
     const [playbackRate, setPlaybackRate] = useState(1);
     const [quality, setQuality] = useState('Auto');
@@ -402,7 +99,7 @@ const CustomVideoPlayer = ({ url, onEnded, title }: { url: string, onEnded: () =
                         height: '100%', width: '100%',
                         playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, disablekb: 1, origin: window.location.origin },
                     }}
-                    onReady={(e) => { setPlayer(e.target); setDuration(e.target.getDuration()); setBuffering(false); }}
+                    onReady={(e) => { setPlayer(e.target); setBuffering(false); }}
                     onStateChange={(e) => { if (!isForceEnded) { setPlaying(e.data === 1); setBuffering(e.data === 3); } }}
                     className="w-full h-full pointer-events-none"
                 />
@@ -559,7 +256,7 @@ export default function CourseConsumption() {
 
                     {activeModule && (
                         <div className="space-y-6">
-                            <CustomVideoPlayer key={activeModule.id} url={activeModule.videoUrl} title={activeModule.title} onEnded={() => handleMarkComplete(activeModule.id)} />
+                            <CustomVideoPlayer key={activeModule.id} url={activeModule.videoUrl} onEnded={() => { handleMarkComplete(activeModule.id); }} />
 
                             <div className="flex justify-between items-center p-5 bg-zinc-50 rounded-2xl border border-zinc-100">
                                 <div>
