@@ -16,7 +16,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, UploadCloud, QrCode } from 'lucide-react';
+import { Loader2, UploadCloud, QrCode, BookOpen, User, CheckCircle2, Clock } from 'lucide-react';
 
 interface Course {
     id: string;
@@ -105,146 +105,145 @@ export default function StudentDashboard() {
                 paymentDetails: { txnId, upiId, screenshotUrl },
                 enrolledAt: serverTimestamp(),
             });
-            alert("Payment submitted for approval!");
             setIsDialogOpen(false);
             setEnrollments(prev => ({ ...prev, [selectedCourse.id]: 'PENDING' }));
         } catch (error) {
-            alert("Submission failed.");
+            console.error(error);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    if (loading) return <div className="flex h-screen items-center justify-center text-muted-foreground">Loading classroom...</div>;
+    if (loading) return (
+        <div className="flex h-screen flex-col gap-4 items-center justify-center bg-slate-50/50">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            <p className="text-xs font-bold tracking-[0.2em] text-slate-400 uppercase">Syncing Dashboard</p>
+        </div>
+    );
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
-            <h1 className="text-3xl font-bold mb-8 tracking-tight text-slate-900">Available Courses</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {courses.map((course) => {
-                    const status = enrollments[course.id];
-                    return (
-                        <Card key={course.id} className="overflow-hidden flex flex-col hover:shadow-md transition-shadow bg-white border-slate-200">
-                            <img src={course.courseImage} className="h-48 w-full object-cover" alt={course.title} />
-                            <CardHeader>
-                                <div className="flex justify-between items-start gap-2">
-                                    <CardTitle className="text-xl line-clamp-1 text-slate-900">{course.title}</CardTitle>
+        <div className="min-h-screen bg-slate-50/30 pb-20">
+            <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-10">
+                <header className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="h-1 w-10 bg-indigo-600 rounded-full" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Student Portal</span>
+                    </div>
+                    <h1 className="text-4xl font-black tracking-tight text-slate-900 lg:text-5xl">Explore <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Courses</span></h1>
+                    <p className="text-slate-500 font-medium max-w-2xl">Advance your skills with professional-grade training and real-time mentorship.</p>
+                </header>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {courses.map((course) => {
+                        const status = enrollments[course.id];
+                        return (
+                            <Card key={course.id} className="group overflow-hidden flex flex-col hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-500 bg-white border-slate-200/60 rounded-[2rem] hover:-translate-y-1">
+                                <div className="relative h-52 overflow-hidden">
+                                    <img src={course.courseImage} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" alt={course.title} />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                                     {status && (
-                                        <Badge variant={status === 'ENROLLED' ? 'default' : 'secondary'} className="capitalize">
-                                            {status.toLowerCase()}
-                                        </Badge>
+                                        <div className="absolute top-4 right-4">
+                                            <Badge className={`px-4 py-1.5 rounded-full border-none shadow-lg font-bold text-[10px] uppercase tracking-wider ${status === 'ENROLLED' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
+                                                {status === 'ENROLLED' ? <span className="flex items-center gap-1"><CheckCircle2 size={12} /> {status}</span> : <span className="flex items-center gap-1"><Clock size={12} /> {status}</span>}
+                                            </Badge>
+                                        </div>
                                     )}
                                 </div>
-                                <CardDescription className="line-clamp-2 h-10">{course.description}</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-grow pt-0">
-                                <p className="text-sm font-medium text-slate-500">Instructor: {course.trainerName}</p>
-                            </CardContent>
-                            <CardFooter className="pt-0">
-                                {status === 'ENROLLED' ? (
-                                    <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => navigate(`/course/${course.id}`)}>
-                                        Continue Learning
-                                    </Button>
-                                ) : status === 'PENDING' ? (
-                                    <Button className="w-full" disabled variant="outline">Waiting for Approval</Button>
-                                ) : (
-                                    <Dialog open={isDialogOpen && selectedCourse?.id === course.id} onOpenChange={(open) => {
-                                        setIsDialogOpen(open);
-                                        if (open) setSelectedCourse(course);
-                                    }}>
-                                        <DialogTrigger asChild>
-                                            <Button className="w-full" variant="outline">Enroll Now</Button>
-                                        </DialogTrigger>
 
-                                        {/* FIXED SCROLLABLE SOLID DIALOG */}
-                                        <DialogContent className="sm:max-w-[450px] w-[95vw] p-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl opacity-100 flex flex-col max-h-[92vh]">
-                                            {/* Header - Stays at top */}
-                                            <div className="bg-slate-50 p-6 border-b border-slate-100 shrink-0">
-                                                <DialogHeader>
-                                                    <DialogTitle className="text-2xl font-bold text-slate-900">Complete Enrollment</DialogTitle>
-                                                    <DialogDescription className="text-slate-600 text-base">
-                                                        Pay for <span className="font-bold text-slate-900">{course.title}</span>
-                                                    </DialogDescription>
-                                                </DialogHeader>
-                                            </div>
+                                <CardHeader className="space-y-3 p-6">
+                                    <CardTitle className="text-2xl font-black tracking-tight text-slate-900 line-clamp-1">{course.title}</CardTitle>
+                                    <CardDescription className="line-clamp-2 h-10 leading-relaxed font-medium">{course.description}</CardDescription>
+                                </CardHeader>
 
-                                            {/* Form Area - Scrollable */}
-                                            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-6 bg-white overflow-y-auto custom-scrollbar">
-                                                {/* QR Code Section */}
-                                                <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">
-                                                    <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                                        <QrCode className="h-4 w-4" /> Scan to Pay
-                                                    </div>
-                                                    <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
-                                                        <img
-                                                            src="https://res.cloudinary.com/dq6c78y00/image/upload/v1772553375/Shyam_payment_qr_code_bpmbfc.jpg"
-                                                            alt="Payment QR"
-                                                            className="w-40 h-40 md:w-44 md:h-44 object-cover"
-                                                        />
-                                                    </div>
-                                                    <p className="mt-3 text-[11px] text-slate-500 text-center leading-relaxed">
-                                                        Send the course fee via UPI and <br /> upload the UTR screenshot below.
-                                                    </p>
+                                <CardContent className="flex-grow px-6 py-0">
+                                    <div className="flex items-center gap-4 py-4 border-t border-slate-50">
+                                        <div className="flex items-center gap-2 text-slate-500">
+                                            <User size={16} className="text-indigo-500" />
+                                            <span className="text-xs font-bold uppercase tracking-wide">{course.trainerName}</span>
+                                        </div>
+                                    </div>
+                                </CardContent>
+
+                                <CardFooter className="p-6 pt-0">
+                                    {status === 'ENROLLED' ? (
+                                        <Button className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-indigo-600 text-white font-black text-xs tracking-widest transition-all shadow-xl shadow-slate-200" onClick={() => navigate(`/course/${course.id}`)}>
+                                            RESUME LEARNING
+                                        </Button>
+                                    ) : status === 'PENDING' ? (
+                                        <Button className="w-full h-12 rounded-2xl bg-slate-100 text-slate-400 font-black text-xs tracking-widest" disabled variant="ghost">WAITING FOR APPROVAL</Button>
+                                    ) : (
+                                        <Dialog open={isDialogOpen && selectedCourse?.id === course.id} onOpenChange={(open) => {
+                                            setIsDialogOpen(open);
+                                            if (open) setSelectedCourse(course);
+                                        }}>
+                                            <DialogTrigger asChild>
+                                                <Button className="w-full h-12 rounded-2xl border-2 border-slate-900 bg-transparent text-slate-900 hover:bg-slate-900 hover:text-white font-black text-xs tracking-widest transition-all">ENROLL NOW</Button>
+                                            </DialogTrigger>
+
+                                            <DialogContent className="sm:max-w-[480px] w-[95vw] p-0 overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl flex flex-col max-h-[92vh]">
+                                                <div className="bg-slate-950 p-8 text-white shrink-0 relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-16 -mt-16" />
+                                                    <DialogHeader className="relative z-10">
+                                                        <DialogTitle className="text-3xl font-black tracking-tighter uppercase italic">Secure Checkout</DialogTitle>
+                                                        <DialogDescription className="text-slate-400 font-medium">
+                                                            Course: <span className="text-indigo-400 font-bold">{course.title}</span>
+                                                        </DialogDescription>
+                                                    </DialogHeader>
                                                 </div>
 
-                                                <div className="space-y-4">
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="upiId" className="text-xs font-bold uppercase text-slate-700">Your UPI ID</Label>
-                                                        <Input
-                                                            id="upiId"
-                                                            placeholder="yourname@upi"
-                                                            value={upiId}
-                                                            onChange={e => setUpiId(e.target.value)}
-                                                            required
-                                                            className="bg-white border-slate-300 focus:ring-blue-500 h-11"
-                                                        />
+                                                <form onSubmit={handlePaymentSubmit} className="p-8 space-y-8 bg-white overflow-y-auto custom-scrollbar">
+                                                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex flex-col items-center gap-4">
+                                                        <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                                            <QrCode className="h-4 w-4 text-indigo-600" /> Gateway Node
+                                                        </div>
+                                                        <div className="bg-white p-3 rounded-2xl shadow-sm ring-1 ring-slate-100">
+                                                            <img
+                                                                src="https://res.cloudinary.com/dq6c78y00/image/upload/v1772553375/Shyam_payment_qr_code_bpmbfc.jpg"
+                                                                alt="Payment QR"
+                                                                className="w-44 h-44 object-cover rounded-lg"
+                                                            />
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-400 text-center font-medium leading-relaxed">
+                                                            Scan the QR code to pay via any UPI app. <br /> Upload your <span className="text-slate-900 font-bold">12-digit UTR</span> screenshot below.
+                                                        </p>
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="txnId" className="text-xs font-bold uppercase text-slate-700">Transaction ID (UTR)</Label>
-                                                        <Input
-                                                            id="txnId"
-                                                            placeholder="12-digit number"
-                                                            value={txnId}
-                                                            onChange={e => setTxnId(e.target.value)}
-                                                            required
-                                                            className="bg-white border-slate-300 focus:ring-blue-500 h-11"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="screenshot" className="text-xs font-bold uppercase text-slate-700">Payment Screenshot</Label>
-                                                        <Input
-                                                            id="screenshot"
-                                                            type="file"
-                                                            accept="image/*"
-                                                            onChange={e => setScreenshot(e.target.files?.[0] || null)}
-                                                            required
-                                                            className="bg-white border-slate-300 file:bg-slate-400 file:text-white file:text-xs file:font-bold h-11 pt-2"
-                                                        />
-                                                    </div>
-                                                </div>
 
-                                                {/* Footer-like Button inside scroll area to ensure it's reached */}
-                                                <Button type="submit" className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg shadow-blue-100 transition-all active:scale-95" disabled={isSubmitting}>
-                                                    {isSubmitting ? (
-                                                        <>
-                                                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                                            Processing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <UploadCloud className="mr-2 h-5 w-5" />
-                                                            Confirm Enrollment
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </form>
-                                        </DialogContent>
-                                    </Dialog>
-                                )}
-                            </CardFooter>
-                        </Card>
-                    );
-                })}
+                                                    <div className="space-y-5">
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="upiId" className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Your UPI Handle</Label>
+                                                            <Input id="upiId" placeholder="username@upi" value={upiId} onChange={e => setUpiId(e.target.value)} required
+                                                                className="rounded-xl border-slate-200 h-12 focus-visible:ring-indigo-500" />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="txnId" className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">UTR / Transaction ID</Label>
+                                                            <Input id="txnId" placeholder="12-digit numeric code" value={txnId} onChange={e => setTxnId(e.target.value)} required
+                                                                className="rounded-xl border-slate-200 h-12 focus-visible:ring-indigo-500" />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="screenshot" className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Payment Verification</Label>
+                                                            <div className="relative group">
+                                                                <Input id="screenshot" type="file" accept="image/*" onChange={e => setScreenshot(e.target.files?.[0] || null)} required
+                                                                    className="rounded-xl border-slate-200 h-12 pt-2.5 file:bg-indigo-600 file:text-white file:rounded-lg file:text-[10px] file:font-black file:uppercase file:border-none file:mr-4 file:px-3" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <Button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-slate-900 text-white font-black rounded-2xl shadow-2xl shadow-indigo-200 transition-all active:scale-95" disabled={isSubmitting}>
+                                                        {isSubmitting ? (
+                                                            <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> VERIFYING...</>
+                                                        ) : (
+                                                            <><UploadCloud className="mr-2 h-5 w-5" /> CONFIRM ENROLLMENT</>
+                                                        )}
+                                                    </Button>
+                                                </form>
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                </CardFooter>
+                            </Card>
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
