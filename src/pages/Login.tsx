@@ -10,18 +10,6 @@ import {
     sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from '@/components/ui/label';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Loader2, Mail, ShieldCheck, AlertCircle, KeyRound } from 'lucide-react';
@@ -54,6 +42,7 @@ export default function Login() {
     const [resetEmail, setResetEmail] = useState('');
     const [resetLoading, setResetLoading] = useState(false);
     const [resetMessage, setResetMessage] = useState('');
+    const [showResetModal, setShowResetModal] = useState(false);
 
     const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
@@ -122,103 +111,51 @@ export default function Login() {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4 relative overflow-hidden font-sans">
-            {/* Background Decorations */}
-            <div className="absolute top-0 -right-20 w-96 h-96 bg-indigo-600/10 rounded-full blur-[100px]" />
-            <div className="absolute bottom-0 -left-20 w-96 h-96 bg-violet-600/10 rounded-full blur-[100px]" />
+        <div className="flex items-center justify-center min-h-screen bg-base-200 p-4 relative overflow-hidden font-sans">
+            <div className="absolute top-0 -right-20 w-96 h-96 bg-primary/10 rounded-full blur-[100px]" />
+            <div className="absolute bottom-0 -left-20 w-96 h-96 bg-secondary/10 rounded-full blur-[100px]" />
 
-            <Card className="w-full max-w-md border-slate-200/60 shadow-2xl rounded-[2.5rem] bg-white/90 backdrop-blur-xl z-10 overflow-hidden">
-                <CardHeader className="space-y-1 p-8 pb-4 text-center">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
-                        <KeyRound className="text-white" size={24} />
+            <div className="card w-full max-w-md bg-base-100 shadow-2xl z-10">
+                <div className="card-body p-8">
+                    <div className="text-center mb-2">
+                        <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                            <KeyRound className="text-primary-content" size={24} />
+                        </div>
+                        <h2 className="card-title text-3xl font-black tracking-tighter justify-center uppercase italic">Welcome Back</h2>
+                        <p className="text-base-content/60 font-medium mt-1">Log in to resume your curriculum.</p>
                     </div>
-                    <CardTitle className="text-3xl font-black tracking-tighter text-slate-900 uppercase italic">Welcome Back</CardTitle>
-                    <CardDescription className="text-slate-400 font-medium">Log in to resume your curriculum.</CardDescription>
-                </CardHeader>
 
-                <CardContent className="p-8 pt-4">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Identity Endpoint</Label>
-                            <Input placeholder="email@example.com" className="rounded-xl border-slate-200 h-12 focus-visible:ring-indigo-600" {...register('email')} />
-                            {errors.email && <p className="text-[10px] text-rose-500 font-bold uppercase tracking-tight ml-1">{errors.email.message}</p>}
+                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-4">
+                        <div className="form-control">
+                            <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Identity Endpoint</span></label>
+                            <input type="email" placeholder="email@example.com" className="input input-bordered w-full" {...register('email')} />
+                            {errors.email && <p className="text-error text-xs font-bold mt-1">{errors.email.message}</p>}
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="form-control">
                             <div className="flex items-center justify-between">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Access Token</Label>
-
-                                <Dialog onOpenChange={() => { setResetMessage(''); setResetEmail(''); }}>
-                                    <DialogTrigger asChild>
-                                        <button type="button" className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-400 transition-colors tracking-widest">Forgot password?</button>
-                                    </DialogTrigger>
-                                    <DialogContent className="sm:max-w-[420px] w-[95vw] p-0 overflow-hidden rounded-[2rem] border-none bg-white shadow-2xl">
-                                        <div className="bg-slate-950 p-8 text-white relative">
-                                            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-600/20 rounded-full blur-2xl -mr-10 -mt-10" />
-                                            <DialogHeader className="relative z-10">
-                                                <DialogTitle className="text-2xl font-black tracking-tight uppercase italic flex items-center gap-2">
-                                                    <ShieldCheck className="text-indigo-500" /> Account Recovery
-                                                </DialogTitle>
-                                                <DialogDescription className="text-slate-400 font-medium pt-1">
-                                                    Enter your registered email to receive a secure reset link.
-                                                </DialogDescription>
-                                            </DialogHeader>
-                                        </div>
-
-                                        <form onSubmit={handleForgotPassword} className="p-8 space-y-6">
-                                            <div className="space-y-2 group">
-                                                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Recovery Destination</Label>
-                                                <div className="relative">
-                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-600 transition-colors" size={16} />
-                                                    <Input
-                                                        type="email"
-                                                        placeholder="email@example.com"
-                                                        className="h-12 pl-11 rounded-xl border-slate-100 bg-slate-50 focus:bg-white focus:ring-indigo-600 font-medium"
-                                                        value={resetEmail}
-                                                        onChange={(e) => setResetEmail(e.target.value)}
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {resetMessage && (
-                                                <div className={`p-4 rounded-xl flex items-start gap-3 animate-in fade-in zoom-in duration-300 ${resetMessage.includes('sent') ? 'bg-emerald-50 border border-emerald-100 text-emerald-700' : 'bg-rose-50 border border-rose-100 text-rose-700'}`}>
-                                                    {resetMessage.includes('sent') ? <ShieldCheck size={18} className="shrink-0 mt-0.5" /> : <AlertCircle size={18} className="shrink-0 mt-0.5" />}
-                                                    <p className="text-xs font-bold leading-tight uppercase tracking-tight">{resetMessage}</p>
-                                                </div>
-                                            )}
-
-                                            <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-slate-900 text-white font-black rounded-xl uppercase text-xs tracking-[0.2em] transition-all shadow-lg shadow-indigo-100" disabled={resetLoading}>
-                                                {resetLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'INITIATE RECOVERY'}
-                                            </Button>
-                                        </form>
-                                    </DialogContent>
-                                </Dialog>
+                                <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Access Token</span></label>
+                                <button type="button" className="text-[10px] font-black uppercase text-primary hover:text-primary-focus transition-colors tracking-widest" onClick={() => setShowResetModal(true)}>Forgot password?</button>
                             </div>
-                            <Input id="password" type="password" placeholder="••••••••" className="rounded-xl border-slate-200 h-12 focus-visible:ring-indigo-600" {...register('password')} />
-                            {errors.password && <p className="text-[10px] text-rose-500 font-bold uppercase tracking-tight ml-1">{errors.password.message}</p>}
+                            <input type="password" placeholder="••••••••" className="input input-bordered w-full" {...register('password')} />
+                            {errors.password && <p className="text-error text-xs font-bold mt-1">{errors.password.message}</p>}
                         </div>
 
                         {error && (
-                            <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 flex items-center gap-2 animate-in fade-in slide-in-from-top-1">
+                            <div className="alert alert-error">
                                 <AlertCircle size={16} />
-                                <span className="text-[11px] font-black uppercase tracking-tight">{error}</span>
+                                <span className="text-xs font-black uppercase tracking-tight">{error}</span>
                             </div>
                         )}
 
-                        <Button type="submit" className="w-full h-14 bg-indigo-600 hover:bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 uppercase text-xs tracking-[0.2em] transition-all active:scale-95" disabled={loading}>
+                        <button type="submit" className="btn btn-primary w-full h-14 font-black uppercase text-xs tracking-[0.2em]" disabled={loading}>
                             {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'AUTHORIZE SESSION'}
-                        </Button>
+                        </button>
                     </form>
 
-                    <div className="relative my-8">
-                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100" /></div>
-                        <div className="relative flex justify-center text-[10px] uppercase tracking-widest font-black text-slate-300">
-                            <span className="bg-white px-4">Cloud Auth Flow</span>
-                        </div>
-                    </div>
+                    <div className="divider text-[10px] uppercase tracking-widest font-black text-base-content/30 my-6">Cloud Auth Flow</div>
 
-                    <Button variant="outline" className="w-full h-14 flex gap-3 border-2 border-slate-900 bg-transparent text-slate-900 hover:bg-slate-900 hover:text-white rounded-2xl font-black uppercase text-xs tracking-widest transition-all" onClick={handleGoogleLogin} disabled={loading}>
+                    <button className="btn btn-outline w-full h-14 font-black uppercase text-xs tracking-widest gap-3" onClick={handleGoogleLogin} disabled={loading}>
                         <svg className="w-4 h-4" viewBox="0 0 24 24">
                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
                             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
@@ -226,15 +163,49 @@ export default function Login() {
                             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                         </svg>
                         Google Node
-                    </Button>
-                </CardContent>
+                    </button>
 
-                <CardFooter className="pb-8 pt-2">
-                    <p className="text-[11px] text-slate-400 font-bold text-center w-full uppercase tracking-widest">
-                        New student? <Link to="/register" className="text-indigo-600 hover:text-slate-900 transition-colors border-b-2 border-indigo-100 pb-0.5">Initialize Account</Link>
+                    <p className="text-xs text-base-content/50 font-bold text-center mt-6 uppercase tracking-widest">
+                        New student? <Link to="/register" className="text-primary hover:underline">Initialize Account</Link>
                     </p>
-                </CardFooter>
-            </Card>
+                </div>
+            </div>
+
+            {/* Reset Password Modal */}
+            <dialog className={`modal ${showResetModal ? 'modal-open' : ''}`}>
+                <div className="modal-box">
+                    <h3 className="font-black text-2xl uppercase italic flex items-center gap-2 mb-1">
+                        <ShieldCheck className="text-primary" /> Account Recovery
+                    </h3>
+                    <p className="text-base-content/60 font-medium text-sm mb-6">Enter your registered email to receive a secure reset link.</p>
+
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                        <div className="form-control">
+                            <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Recovery Destination</span></label>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-base-content/30" size={16} />
+                                <input type="email" placeholder="email@example.com" className="input input-bordered w-full pl-11" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+                            </div>
+                        </div>
+
+                        {resetMessage && (
+                            <div className={`alert ${resetMessage.includes('sent') ? 'alert-success' : 'alert-error'}`}>
+                                {resetMessage.includes('sent') ? <ShieldCheck size={18} /> : <AlertCircle size={18} />}
+                                <span className="text-xs font-bold uppercase">{resetMessage}</span>
+                            </div>
+                        )}
+
+                        <button type="submit" className="btn btn-primary w-full font-black uppercase text-xs tracking-[0.2em]" disabled={resetLoading}>
+                            {resetLoading ? <Loader2 className="animate-spin h-5 w-5" /> : 'INITIATE RECOVERY'}
+                        </button>
+                    </form>
+
+                    <div className="modal-action">
+                        <button className="btn btn-ghost" onClick={() => { setShowResetModal(false); setResetMessage(''); setResetEmail(''); }}>Close</button>
+                    </div>
+                </div>
+                <form method="dialog" className="modal-backdrop" onClick={() => setShowResetModal(false)}><button>close</button></form>
+            </dialog>
         </div>
     );
 }
