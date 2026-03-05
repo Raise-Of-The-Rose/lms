@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, addDoc, increment, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { Video, Users, LayoutDashboard, PlusCircle, Globe, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { Video, Users, LayoutDashboard, PlusCircle, Globe, Clock, CheckCircle2, Loader2, FolderPlus, Layers, Lock } from 'lucide-react';
 
 interface Course {
   id: string;
@@ -10,6 +10,14 @@ interface Course {
   meetLink?: string;
   meetTime?: string;
   totalModules: number;
+  durationMonths?: number;
+}
+
+interface ModuleGroup {
+  id: string;
+  name: string;
+  monthNumber: number;
+  videoCount?: number;
 }
 
 interface StudentProgress {
@@ -30,9 +38,33 @@ export default function TrainerDashboard() {
 
   const [meetLink, setMeetLink] = useState('');
   const [meetTime, setMeetTime] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Module Groups
+  const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
+  const [groupName, setGroupName] = useState('');
+  const [groupMonth, setGroupMonth] = useState('1');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+
+  // Video / Module inside a group
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   const [moduleTitle, setModuleTitle] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [isAddingVideo, setIsAddingVideo] = useState(false);
+
+  const selectedCourseData = assignedCourses.find(c => c.id === selectedCourse);
+  const durationMonths = selectedCourseData?.durationMonths || 1;
+
+  const fetchModuleGroups = async (courseId: string) => {
+    const snap = await getDocs(collection(db, `courses/${courseId}/moduleGroups`));
+    const groups = snap.docs.map(d => ({ id: d.id, ...d.data() } as ModuleGroup));
+    // Count videos per group
+    const withCounts = await Promise.all(groups.map(async (g) => {
+      const vSnap = await getDocs(query(collection(db, `courses/${courseId}/modules`), where('moduleGroupId', '==', g.id)));
+      return { ...g, videoCount: vSnap.size };
+    }));
+    setModuleGroups(withCounts.sort((a, b) => a.monthNumber - b.monthNumber));
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -46,6 +78,7 @@ export default function TrainerDashboard() {
           setSelectedCourse(courses[0].id);
           setMeetLink(courses[0].meetLink || '');
           setMeetTime(courses[0].meetTime || '');
+          fetchModuleGroups(courses[0].id);
         }
       } catch (error) {
         console.error("Error fetching trainer courses:", error);
@@ -58,6 +91,8 @@ export default function TrainerDashboard() {
 
   useEffect(() => {
     if (!selectedCourse) return;
+    fetchModuleGroups(selectedCourse);
+
     const fetchStudentsAndNames = async () => {
       try {
         const enrollQ = query(collection(db, 'enrollments'), where("courseId", "==", selectedCourse), where("status", "==", "ENROLLED"));
@@ -98,20 +133,46 @@ export default function TrainerDashboard() {
     finally { setIsUpdating(false); }
   };
 
-  const handleAddModule = async (e: React.FormEvent) => {
+  const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourse) return;
+    if (!selectedCourse || !groupName.trim()) return;
+    setIsCreatingGroup(true);
+    try {
+      await addDoc(collection(db, `courses/${selectedCourse}/moduleGroups`), {
+        name: groupName.trim(),
+        monthNumber: parseInt(groupMonth),
+        createdAt: new Date()
+      });
+      setGroupName('');
+      setGroupMonth('1');
+      await fetchModuleGroups(selectedCourse);
+      alert(`Module group "${groupName}" created for Month ${groupMonth}!`);
+    } catch (error) { console.error(error); }
+    finally { setIsCreatingGroup(false); }
+  };
+
+  const handleAddVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourse || !selectedGroupId) { alert("Select a module group first."); return; }
     const isValidUrl = videoUrl.includes('youtu.be') || videoUrl.includes('youtube.com') || videoUrl.includes('drive.google.com') || videoUrl.includes('vimeo.com');
     if (!isValidUrl) { alert("Please use valid YouTube, Vimeo, or Drive links."); return; }
-    setIsUpdating(true);
+    setIsAddingVideo(true);
     try {
-      await addDoc(collection(db, `courses/${selectedCourse}/modules`), { title: moduleTitle, videoUrl: videoUrl, createdAt: new Date() });
+      const group = moduleGroups.find(g => g.id === selectedGroupId);
+      await addDoc(collection(db, `courses/${selectedCourse}/modules`), {
+        title: moduleTitle,
+        videoUrl,
+        moduleGroupId: selectedGroupId,
+        monthNumber: group?.monthNumber || 1,
+        createdAt: new Date()
+      });
       await updateDoc(doc(db, 'courses', selectedCourse), { totalModules: increment(1) });
-      alert("Module published!");
       setModuleTitle(''); setVideoUrl('');
       setAssignedCourses(courses => courses.map(c => c.id === selectedCourse ? { ...c, totalModules: c.totalModules + 1 } : c));
+      await fetchModuleGroups(selectedCourse);
+      alert("Video published!");
     } catch (error) { console.error(error); }
-    finally { setIsUpdating(false); }
+    finally { setIsAddingVideo(false); }
   };
 
   if (loading) return (
@@ -153,6 +214,11 @@ export default function TrainerDashboard() {
                 <option key={course.id} value={course.id}>{course.title}</option>
               ))}
             </select>
+            {selectedCourseData && (
+              <p className="text-[10px] text-base-content/50 mt-1 font-medium">
+                Duration: <span className="font-bold text-primary">{durationMonths} month{durationMonths !== 1 ? 's' : ''}</span>
+              </p>
+            )}
           </div>
         </header>
 
@@ -164,9 +230,10 @@ export default function TrainerDashboard() {
 
         {/* Manage Tab */}
         {activeTab === 'manage' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Live Session Card */}
-            <div className="card bg-base-100 shadow-xl">
+          <div className="space-y-8">
+
+            {/* Live Session */}
+            <div className="card bg-base-100 shadow-xl max-w-lg">
               <div className="card-body">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2 bg-primary/20 rounded-xl"><Video size={20} className="text-primary" /></div>
@@ -195,29 +262,120 @@ export default function TrainerDashboard() {
               </div>
             </div>
 
-            {/* Curriculum Card */}
-            <div className="card bg-base-100 shadow-xl">
-              <div className="card-body">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-primary/20 rounded-xl"><PlusCircle size={20} className="text-primary" /></div>
-                  <h2 className="card-title text-xl font-black uppercase tracking-tight italic">Expand Curriculum</h2>
+            {/* Module Groups Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+              {/* Create Module Group */}
+              <div className="card bg-base-100 shadow-xl">
+                <div className="card-body">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-secondary/20 rounded-xl"><FolderPlus size={20} className="text-secondary" /></div>
+                    <div>
+                      <h2 className="card-title text-xl font-black uppercase tracking-tight">Create Module Group</h2>
+                      <p className="text-xs text-base-content/50 font-medium">e.g. "Beginner", "Introduction" — assign to a month</p>
+                    </div>
+                  </div>
+                  <form onSubmit={handleCreateGroup} className="space-y-4">
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Group Name</span></label>
+                      <input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="e.g. Beginner, HTML Basics..." className="input input-bordered w-full" required />
+                    </div>
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Assign to Month</span></label>
+                      <select className="select select-bordered w-full" value={groupMonth} onChange={e => setGroupMonth(e.target.value)} required>
+                        {Array.from({ length: durationMonths }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={m}>Month {m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button type="submit" disabled={isCreatingGroup} className="btn btn-secondary w-full font-black uppercase text-xs tracking-widest">
+                      {isCreatingGroup ? <Loader2 className="animate-spin h-5 w-5" /> : "Create Group"}
+                    </button>
+                  </form>
                 </div>
-                <p className="text-base-content/60 font-medium mb-4">Inject new recorded content into the module stream.</p>
-                <form onSubmit={handleAddModule} className="space-y-6">
-                  <div className="form-control">
-                    <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Module Title</span></label>
-                    <input value={moduleTitle} onChange={e => setModuleTitle(e.target.value)} placeholder="e.g., Advanced Logic Patterns" className="input input-bordered w-full" required />
+              </div>
+
+              {/* Add Video to Group */}
+              <div className="card bg-base-100 shadow-xl">
+                <div className="card-body">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-primary/20 rounded-xl"><PlusCircle size={20} className="text-primary" /></div>
+                    <div>
+                      <h2 className="card-title text-xl font-black uppercase tracking-tight">Add Video</h2>
+                      <p className="text-xs text-base-content/50 font-medium">Select a module group, then add a video link</p>
+                    </div>
                   </div>
-                  <div className="form-control">
-                    <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Secure Video Link</span></label>
-                    <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube, Drive, or Vimeo URL" className="input input-bordered w-full" required />
-                  </div>
-                  <button type="submit" disabled={isUpdating} className="btn btn-outline w-full font-black uppercase text-xs tracking-[0.15em]">
-                    {isUpdating ? <Loader2 className="animate-spin h-5 w-5" /> : "Publish Module"}
-                  </button>
-                </form>
+                  <form onSubmit={handleAddVideo} className="space-y-4">
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Module Group</span></label>
+                      <select className="select select-bordered w-full" value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)} required>
+                        <option value="">Choose a group...</option>
+                        {moduleGroups.map(g => (
+                          <option key={g.id} value={g.id}>Month {g.monthNumber} — {g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Video Title</span></label>
+                      <input value={moduleTitle} onChange={e => setModuleTitle(e.target.value)} placeholder="e.g. Introduction to Variables" className="input input-bordered w-full" required />
+                    </div>
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Secure Video Link</span></label>
+                      <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube, Drive, or Vimeo URL" className="input input-bordered w-full" required />
+                    </div>
+                    <button type="submit" disabled={isAddingVideo} className="btn btn-primary w-full font-black uppercase text-xs tracking-widest">
+                      {isAddingVideo ? <Loader2 className="animate-spin h-5 w-5" /> : "Publish Video"}
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
+
+            {/* Curriculum Overview */}
+            {moduleGroups.length > 0 && (
+              <div className="card bg-base-100 shadow-xl">
+                <div className="card-body p-0">
+                  <div className="p-6 border-b border-base-300 flex items-center gap-3">
+                    <div className="p-2 bg-primary/20 rounded-xl"><Layers size={20} className="text-primary" /></div>
+                    <div>
+                      <h2 className="card-title text-xl font-black">Curriculum Overview</h2>
+                      <p className="text-xs text-base-content/50">All module groups for this course</p>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    {Array.from({ length: durationMonths }, (_, i) => i + 1).map(month => {
+                      const monthGroups = moduleGroups.filter(g => g.monthNumber === month);
+                      return (
+                        <div key={month} className="mb-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="badge badge-primary font-black">Month {month}</span>
+                            <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-widest">{monthGroups.length} group{monthGroups.length !== 1 ? 's' : ''}</span>
+                          </div>
+                          {monthGroups.length === 0 ? (
+                            <div className="flex items-center gap-2 p-4 bg-base-200 rounded-xl border-2 border-dashed border-base-300">
+                              <Lock size={14} className="text-base-content/30" />
+                              <span className="text-xs text-base-content/40 italic">No groups yet for this month</span>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {monthGroups.map(g => (
+                                <div key={g.id} className="bg-base-200 rounded-xl p-4 flex items-center justify-between">
+                                  <div>
+                                    <p className="font-bold text-sm">{g.name}</p>
+                                    <p className="text-[10px] text-base-content/50 mt-0.5">{g.videoCount || 0} video{(g.videoCount || 0) !== 1 ? 's' : ''}</p>
+                                  </div>
+                                  <span className="badge badge-outline badge-sm font-bold">M{month}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

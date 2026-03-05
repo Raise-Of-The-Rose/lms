@@ -1,14 +1,14 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, RotateCw, Settings2, Radio } from 'lucide-react';
+import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, RotateCw, Settings2, Radio, Lock, ChevronDown, ChevronRight, IndianRupee } from 'lucide-react';
 import YouTube from 'react-youtube';
 
-interface Module { id: string; title: string; videoUrl: string; }
-interface Enrollment { id: string; progress: number; completedModules: string[]; status: string; }
+interface Module { id: string; title: string; videoUrl: string; moduleGroupId?: string; monthNumber?: number; }
+interface ModuleGroup { id: string; name: string; monthNumber: number; }
+interface Enrollment { id: string; progress: number; completedModules: string[]; status: string; paidMonths?: number[]; paymentType?: 'FULL' | 'MONTHLY'; }
 
 const getYouTubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -117,12 +117,114 @@ const CustomVideoPlayer = ({ url, onEnded }: { url: string, onEnded: () => void 
     );
 };
 
+// Collapsible month/group section in sidebar
+const MonthSection = ({
+    monthNumber, groups, paidMonths, completedModules, activeModule, onSelectModule, courseStartingAt
+}: {
+    monthNumber: number;
+    groups: { group: ModuleGroup; modules: Module[] }[];
+    paidMonths: number[];
+    completedModules: string[];
+    activeModule: Module | null;
+    onSelectModule: (m: Module) => void;
+    courseStartingAt: string;
+}) => {
+    const navigate = useNavigate();
+    const isUnlocked = paidMonths.includes(monthNumber);
+    const [open, setOpen] = useState(isUnlocked); // unlocked months default open
+    const totalInMonth = groups.reduce((acc, g) => acc + g.modules.length, 0);
+    const completedInMonth = groups.reduce((acc, g) => acc + g.modules.filter(m => completedModules.includes(m.id)).length, 0);
+
+    return (
+        <div className={`rounded-xl overflow-hidden border ${isUnlocked ? 'border-base-300' : 'border-base-300/50'}`}>
+            <button
+                className={`w-full flex items-center justify-between p-4 text-left transition-colors ${isUnlocked ? 'bg-base-200 hover:bg-base-300/50' : 'bg-base-200/50 cursor-default'}`}
+                onClick={() => isUnlocked && setOpen(o => !o)}
+                title={isUnlocked ? (open ? 'Click to collapse' : 'Click to expand') : 'Locked'}
+            >
+                <div className="flex items-center gap-3">
+                    {isUnlocked ? (
+                        open ? <ChevronDown size={16} className="text-primary" /> : <ChevronRight size={16} className="text-base-content/40" />
+                    ) : (
+                        <Lock size={16} className="text-base-content/30" />
+                    )}
+                    <div>
+                        <span className={`text-xs font-black uppercase tracking-widest ${isUnlocked ? 'text-base-content' : 'text-base-content/40'}`}>
+                            Month {monthNumber}
+                        </span>
+                        <div className="text-[10px] text-base-content/40 font-medium mt-0.5">
+                            {isUnlocked ? `${completedInMonth}/${totalInMonth} done` : 'Locked'}
+                        </div>
+                    </div>
+                </div>
+                {isUnlocked ? (
+                    <span className="badge badge-primary badge-outline text-[9px] font-bold">{totalInMonth} videos</span>
+                ) : (
+                    <span className="badge badge-ghost text-[9px] font-bold opacity-50">{totalInMonth} videos</span>
+                )}
+            </button>
+
+            {/* Locked month preview */}
+            {!isUnlocked && (
+                <div className="p-3 bg-base-100/50 space-y-1">
+                    {groups.flatMap(g => g.modules).map(m => (
+                        <div key={m.id} className="flex items-center gap-2 px-3 py-2 rounded-lg opacity-50">
+                            <Lock size={12} className="text-base-content/30 flex-shrink-0" />
+                            <span className="text-[11px] text-base-content/50 font-medium line-clamp-1">{m.title}</span>
+                        </div>
+                    ))}
+                    <button
+                        className="btn btn-sm btn-warning btn-outline w-full mt-2 font-black text-[10px] tracking-widest gap-1"
+                        onClick={() => navigate('/dashboard')}
+                    >
+                        <IndianRupee size={12} /> PAY MONTH {monthNumber} — ₹{courseStartingAt}
+                    </button>
+                </div>
+            )}
+
+            {/* Unlocked month modules — all visible, no height cap */}
+            {isUnlocked && open && (
+                <div className="divide-y divide-base-300/30 bg-base-100">
+                    {groups.map(({ group, modules: groupModules }) => (
+                        <div key={group.id}>
+                            {/* Group header */}
+                            <div className="sticky top-0 z-10 px-4 py-2.5 bg-primary/10 border-l-4 border-primary flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary">{group.name}</span>
+                                <span className="text-[9px] text-primary/60 font-bold">{groupModules.length} video{groupModules.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            {/* All videos listed fully */}
+                            {groupModules.map((m, i) => {
+                                const isCompleted = completedModules.includes(m.id);
+                                const isActive = activeModule?.id === m.id;
+                                return (
+                                    <button key={m.id} onClick={() => onSelectModule(m)}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 text-left relative transition-all ${isActive ? 'bg-primary/10' : 'hover:bg-base-200'}`}>
+                                        <div className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg font-black text-[11px] ${isCompleted ? 'bg-success/20 text-success' : isActive ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/50'}`}>
+                                            {isCompleted ? <CheckCircle size={14} /> : (i + 1)}
+                                        </div>
+                                        <div className="flex flex-col flex-grow min-w-0">
+                                            <span className={`text-xs font-bold leading-snug tracking-wide ${isCompleted ? 'text-base-content/40 line-through' : isActive ? 'text-primary' : 'text-base-content'}`}>{m.title}</span>
+                                            {isActive && <span className="text-[9px] uppercase font-bold tracking-widest text-primary mt-0.5">Now Playing</span>}
+                                        </div>
+                                        {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default function CourseConsumption() {
     const { courseId } = useParams<{ courseId: string }>();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const [courseData, setCourseData] = useState<any>(null);
     const [modules, setModules] = useState<Module[]>([]);
+    const [moduleGroups, setModuleGroups] = useState<ModuleGroup[]>([]);
     const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
     const [activeModule, setActiveModule] = useState<Module | null>(null);
     const [loading, setLoading] = useState(true);
@@ -133,13 +235,35 @@ export default function CourseConsumption() {
             try {
                 const cSnap = await getDoc(doc(db, 'courses', courseId));
                 if (cSnap.exists()) setCourseData(cSnap.data());
+
+                // Fetch module groups
+                const gSnap = await getDocs(collection(db, `courses/${courseId}/moduleGroups`));
+                const groups = gSnap.docs.map(d => ({ id: d.id, ...d.data() } as ModuleGroup));
+                setModuleGroups(groups.sort((a, b) => a.monthNumber - b.monthNumber));
+
+                // Fetch modules
                 const mSnap = await getDocs(query(collection(db, `courses/${courseId}/modules`), orderBy("createdAt", "asc")));
                 const fetched = mSnap.docs.map(d => ({ id: d.id, ...d.data() } as Module));
                 setModules(fetched);
-                if (fetched.length > 0) setActiveModule(fetched[0]);
+
+                // Enrollment check
                 const eSnap = await getDocs(query(collection(db, 'enrollments'), where("studentId", "==", currentUser.uid), where("courseId", "==", courseId)));
-                if (!eSnap.empty) { const data = eSnap.docs[0].data(); if (data.status === 'ENROLLED') setEnrollment({ id: eSnap.docs[0].id, ...data } as Enrollment); else navigate('/dashboard'); }
-                else navigate('/dashboard');
+                if (!eSnap.empty) {
+                    const data = eSnap.docs[0].data();
+                    if (data.status === 'ENROLLED') {
+                        const enroll = { id: eSnap.docs[0].id, ...data } as Enrollment;
+                        setEnrollment(enroll);
+                        // Auto-select first accessible module
+                        const paidMonths = enroll.paidMonths || [];
+                        const firstAccessible = fetched.find(m => paidMonths.includes(m.monthNumber || 1));
+                        if (firstAccessible) setActiveModule(firstAccessible);
+                        else if (fetched.length > 0) setActiveModule(fetched[0]);
+                    } else {
+                        navigate('/dashboard');
+                    }
+                } else {
+                    navigate('/dashboard');
+                }
             } catch (e) { console.error(e); } finally { setLoading(false); }
         };
         fetchData();
@@ -155,6 +279,36 @@ export default function CourseConsumption() {
 
     if (loading) return <div className="min-h-screen bg-base-200 flex items-center justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>;
     if (!enrollment) return null;
+
+    const paidMonths = enrollment.paidMonths || [];
+    const durationMonths = courseData?.durationMonths || 1;
+
+    // Build grouped structure: month → groups → modules
+    const monthlyStructure = Array.from({ length: durationMonths }, (_, i) => {
+        const month = i + 1;
+        const monthGroups = moduleGroups.filter(g => g.monthNumber === month);
+        if (monthGroups.length > 0) {
+            return {
+                month,
+                groups: monthGroups.map(g => ({
+                    group: g,
+                    modules: modules.filter(m => m.moduleGroupId === g.id)
+                }))
+            };
+        }
+        // Fallback: if no groups, show ungrouped modules for this month
+        const ungroupedModules = modules.filter(m => (m.monthNumber === month) && !m.moduleGroupId);
+        if (ungroupedModules.length > 0) {
+            return {
+                month,
+                groups: [{ group: { id: `fallback-${month}`, name: 'General', monthNumber: month }, modules: ungroupedModules }]
+            };
+        }
+        return null;
+    }).filter(Boolean) as { month: number; groups: { group: ModuleGroup; modules: Module[] }[] }[];
+
+    // Fallback structure: if no groups at all, show all modules flat under month 1
+    const hasGroupedContent = monthlyStructure.length > 0 && monthlyStructure.some(m => m.groups.some(g => g.modules.length > 0));
 
     return (
         <div className="min-h-screen bg-base-200 font-sans pb-12">
@@ -202,40 +356,71 @@ export default function CourseConsumption() {
                         )}
                     </div>
 
-                    <div className="lg:w-1/3 space-y-6">
-                        <div className="bg-base-100 rounded-2xl p-8 shadow-xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Your Progress</p>
-                            <div className="flex items-baseline gap-1 mb-6">
-                                <h2 className="text-5xl font-black text-base-content tracking-tight">{enrollment.progress}</h2>
-                                <span className="text-primary text-xl font-black">%</span>
-                            </div>
-                            <progress className="progress progress-primary w-full h-2" value={enrollment.progress} max="100"></progress>
-                        </div>
+                    {/* Sidebar — sticky, full-height, scrollable */}
+                    <div className="lg:w-1/3">
+                        <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto space-y-4 pr-1 scrollbar-thin scrollbar-thumb-base-300 scrollbar-track-transparent pb-8">
 
-                        <div className="bg-base-100 rounded-2xl overflow-hidden shadow-xl flex flex-col max-h-[600px]">
-                            <div className="p-6 border-b border-base-300 flex justify-between items-center">
-                                <span className="font-black uppercase text-[10px] tracking-widest">Syllabus</span>
-                                <span className="badge badge-primary badge-outline text-[10px] font-bold">{modules.length} Units</span>
+                            {/* Progress Widget */}
+                            <div className="bg-base-100 rounded-2xl p-6 shadow-xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Your Progress</p>
+                                <div className="flex items-baseline gap-1 mb-4">
+                                    <h2 className="text-4xl font-black text-base-content tracking-tight">{enrollment.progress}</h2>
+                                    <span className="text-primary text-xl font-black">%</span>
+                                </div>
+                                <progress className="progress progress-primary w-full h-2" value={enrollment.progress} max="100"></progress>
+                                <div className="flex items-center justify-between mt-3">
+                                    <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-widest">
+                                        {paidMonths.length}/{durationMonths} months unlocked
+                                    </span>
+                                    <span className="badge badge-primary badge-sm font-bold">{enrollment.completedModules.length}/{modules.length} done</span>
+                                </div>
                             </div>
-                            <div className="flex flex-col divide-y divide-base-300/30 overflow-y-auto scrollbar-hide flex-grow p-2">
-                                {modules.map((m, i) => {
-                                    const isCompleted = enrollment.completedModules.includes(m.id);
-                                    const isActive = activeModule?.id === m.id;
-                                    return (
-                                        <button key={m.id} onClick={() => setActiveModule(m)} className={`w-full flex items-center gap-4 p-4 text-left relative transition-all rounded-xl ${isActive ? 'bg-primary/10' : 'hover:bg-base-200'}`}>
-                                            <div className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-[12px] ${isCompleted ? 'bg-success/20 text-success' : isActive ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/50'}`}>
-                                                {isCompleted ? <CheckCircle size={16} /> : (i + 1)}
-                                            </div>
-                                            <div className="flex flex-col flex-grow">
-                                                <span className={`text-xs font-bold leading-snug tracking-wide line-clamp-2 ${isCompleted ? 'text-base-content/40 line-through' : isActive ? 'text-primary' : 'text-base-content'}`}>{m.title}</span>
-                                                {isActive && <span className="text-[9px] uppercase font-bold tracking-widest text-primary mt-1">Playing</span>}
-                                            </div>
-                                            {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"></div>}
-                                        </button>
-                                    );
-                                })}
+
+                            {/* Month-based Curriculum — full scroll, no max-height cap on content */}
+                            <div className="bg-base-100 rounded-2xl overflow-hidden shadow-xl">
+                                <div className="p-5 border-b border-base-300 flex justify-between items-center">
+                                    <span className="font-black uppercase text-[10px] tracking-widest">Course Curriculum</span>
+                                    <span className="badge badge-primary badge-outline text-[10px] font-bold">{durationMonths} Months</span>
+                                </div>
+                                <div className="flex flex-col gap-2 p-3">
+                                    {hasGroupedContent ? (
+                                        monthlyStructure.map(({ month, groups }) => (
+                                            <MonthSection
+                                                key={month}
+                                                monthNumber={month}
+                                                groups={groups}
+                                                paidMonths={paidMonths}
+                                                completedModules={enrollment.completedModules}
+                                                activeModule={activeModule}
+                                                onSelectModule={setActiveModule}
+                                                courseStartingAt={courseData?.startingAt || ''}
+                                            />
+                                        ))
+                                    ) : (
+                                        /* Legacy flat view — all modules shown, no clipping */
+                                        <div className="flex flex-col divide-y divide-base-300/30 p-2">
+                                            {modules.map((m, i) => {
+                                                const isCompleted = enrollment.completedModules.includes(m.id);
+                                                const isActive = activeModule?.id === m.id;
+                                                return (
+                                                    <button key={m.id} onClick={() => setActiveModule(m)}
+                                                        className={`w-full flex items-center gap-4 p-4 text-left relative transition-all rounded-xl ${isActive ? 'bg-primary/10' : 'hover:bg-base-200'}`}>
+                                                        <div className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl font-black text-[12px] ${isCompleted ? 'bg-success/20 text-success' : isActive ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/50'}`}>
+                                                            {isCompleted ? <CheckCircle size={16} /> : (i + 1)}
+                                                        </div>
+                                                        <div className="flex flex-col flex-grow">
+                                                            <span className={`text-xs font-bold leading-snug tracking-wide ${isCompleted ? 'text-base-content/40 line-through' : isActive ? 'text-primary' : 'text-base-content'}`}>{m.title}</span>
+                                                            {isActive && <span className="text-[9px] uppercase font-bold tracking-widest text-primary mt-1">Playing</span>}
+                                                        </div>
+                                                        {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"></div>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        </div>{/* end sticky scroll wrapper */}
                     </div>
                 </div>
             </div>

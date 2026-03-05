@@ -1,24 +1,48 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp, getDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Search, PlusCircle, Users, BookOpen, CreditCard, CheckCircle2, XCircle, ExternalLink, Sparkles, IndianRupee, Loader2 } from 'lucide-react';
+import { Search, PlusCircle, Users, BookOpen, CreditCard, CheckCircle2, XCircle, ExternalLink, Sparkles, IndianRupee, Loader2, Calendar, QrCode } from 'lucide-react';
 
-interface Enrollment { id: string; studentId: string; courseId: string; status: string; progress: number; paymentDetails: { txnId: string; upiId: string; screenshotUrl: string; }; }
+interface Enrollment {
+    id: string;
+    studentId: string;
+    courseId: string;
+    status: string;
+    progress: number;
+    paymentType?: 'FULL' | 'MONTHLY';
+    monthNumber?: number;
+    paidMonths?: number[];
+    paymentDetails: { txnId: string; upiId: string; screenshotUrl: string; };
+}
+interface PaymentRequest {
+    id: string;
+    studentId: string;
+    courseId: string;
+    monthNumber: number;
+    status: string;
+    paymentDetails: { txnId: string; upiId: string; screenshotUrl: string; };
+}
 interface UserProfile { uid: string; displayName: string; email?: string; role: 'STUDENT' | 'TRAINER' | 'ADMIN'; }
-interface Course { id: string; title: string; trainerId: string; fee: string; startingAt: string; }
+interface Course { id: string; title: string; trainerId: string; fee: string; startingAt: string; durationMonths?: number; }
 
 export default function AdminDashboard() {
     const [pendingEnrollments, setPendingEnrollments] = useState<Enrollment[]>([]);
+    const [pendingPaymentRequests, setPendingPaymentRequests] = useState<PaymentRequest[]>([]);
     const [allEnrollments, setAllEnrollments] = useState<Enrollment[]>([]);
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'payments' | 'courses' | 'users'>('payments');
+
+    // Course creation form
     const [courseTitle, setCourseTitle] = useState('');
     const [courseDesc, setCourseDesc] = useState('');
     const [courseFee, setCourseFee] = useState('');
     const [startingAt, setStartingAt] = useState('');
+    const [durationMonths, setDurationMonths] = useState('3');
+    const [fullFeeQrUrl, setFullFeeQrUrl] = useState('');
+    const [monthlyFeeQrUrl, setMonthlyFeeQrUrl] = useState('');
     const [selectedTrainer, setSelectedTrainer] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [isCreating, setIsCreating] = useState(false);
@@ -29,7 +53,11 @@ export default function AdminDashboard() {
             const enrollSnap = await getDocs(collection(db, 'enrollments'));
             const allEnrolls = enrollSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Enrollment[];
             setAllEnrollments(allEnrolls);
-            setPendingEnrollments(allEnrolls.filter(e => e.status === "PENDING"));
+            setPendingEnrollments(allEnrolls.filter(e => e.status === 'PENDING'));
+
+            const prSnap = await getDocs(query(collection(db, 'paymentRequests'), where('status', '==', 'PENDING')));
+            setPendingPaymentRequests(prSnap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentRequest[]);
+
             const userSnap = await getDocs(collection(db, 'users'));
             setAllUsers(userSnap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
             const courseSnap = await getDocs(collection(db, 'courses'));
@@ -45,31 +73,89 @@ export default function AdminDashboard() {
     const filteredUsers = allUsers.filter(u => u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()));
     const trainers = filteredUsers.filter(u => u.role === 'TRAINER');
     const studentsList = filteredUsers.filter(u => u.role === 'STUDENT');
-    const getStudentName = (id: string) => allUsers.find(u => u.uid === id)?.displayName || "Unknown";
-    const getCourseName = (id: string) => courses.find(c => c.id === id)?.title || "Unknown";
+    const getStudentName = (id: string) => allUsers.find(u => u.uid === id)?.displayName || 'Unknown';
+    const getCourseName = (id: string) => courses.find(c => c.id === id)?.title || 'Unknown';
 
     const uploadToCloudinary = async (file: File) => {
         const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
         const r = await fetch(`https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
         return (await r.json()).secure_url;
     };
+
     const handleCreateCourse = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!imageFile || !selectedTrainer) { alert("Select image and trainer."); return; }
+        const months = parseInt(durationMonths);
+        if (isNaN(months) || months < 1) { alert("Enter a valid course duration (months)."); return; }
         setIsCreating(true);
         try {
             const imageUrl = await uploadToCloudinary(imageFile);
-            await addDoc(collection(db, 'courses'), { title: courseTitle, description: courseDesc, fee: courseFee, startingAt, courseImage: imageUrl, trainerId: selectedTrainer, totalModules: 0, createdAt: serverTimestamp() });
-            alert("Course created!"); setCourseTitle(''); setCourseDesc(''); setCourseFee(''); setStartingAt(''); setSelectedTrainer(''); setImageFile(null); loadInitialData();
+            await addDoc(collection(db, 'courses'), {
+                title: courseTitle, description: courseDesc, fee: courseFee,
+                startingAt, courseImage: imageUrl, trainerId: selectedTrainer,
+                totalModules: 0, durationMonths: months,
+                fullFeeQrUrl: fullFeeQrUrl.trim() || '',
+                monthlyFeeQrUrl: monthlyFeeQrUrl.trim() || '',
+                createdAt: serverTimestamp()
+            });
+            alert("Course created!");
+            setCourseTitle(''); setCourseDesc(''); setCourseFee(''); setStartingAt('');
+            setDurationMonths('3'); setSelectedTrainer(''); setImageFile(null);
+            setFullFeeQrUrl(''); setMonthlyFeeQrUrl('');
+            loadInitialData();
         } catch (e) { console.error(e); } finally { setIsCreating(false); }
     };
-    const handleApproval = async (id: string, approved: boolean) => {
-        try {
-            const s = approved ? 'ENROLLED' : 'REJECTED';
-            await updateDoc(doc(db, 'enrollments', id), { status: s, auditTrail: approved ? 'Approved by Admin' : `Rejected ${new Date().toISOString()}` });
-            alert(`Enrollment ${s}!`); loadInitialData();
-        } catch (e) { console.error(e); }
+
+    // Approve initial enrollment (PENDING → ENROLLED)
+    const handleEnrollmentApproval = async (enrollment: Enrollment, approved: boolean) => {
+        if (!approved) {
+            await updateDoc(doc(db, 'enrollments', enrollment.id), { status: 'REJECTED', auditTrail: `Rejected ${new Date().toISOString()}` });
+            alert('Enrollment REJECTED!'); loadInitialData(); return;
+        }
+        const courseDoc = await getDoc(doc(db, 'courses', enrollment.courseId));
+        const totalMonths = courseDoc.data()?.durationMonths || 1;
+        let newPaidMonths: number[] = [];
+        if (enrollment.paymentType === 'FULL') {
+            newPaidMonths = Array.from({ length: totalMonths }, (_, i) => i + 1);
+        } else {
+            newPaidMonths = enrollment.monthNumber ? [enrollment.monthNumber] : [1];
+        }
+        await updateDoc(doc(db, 'enrollments', enrollment.id), {
+            status: 'ENROLLED', paidMonths: newPaidMonths,
+            auditTrail: `Approved by Admin on ${new Date().toISOString()}`
+        });
+        alert(`Enrollment APPROVED! Months unlocked: ${newPaidMonths.join(', ')}`);
+        loadInitialData();
     };
+
+    // Approve monthly payment request → add month to existing enrollment
+    const handlePaymentRequestApproval = async (pr: PaymentRequest, approved: boolean) => {
+        if (!approved) {
+            await updateDoc(doc(db, 'paymentRequests', pr.id), { status: 'REJECTED', auditTrail: `Rejected ${new Date().toISOString()}` });
+            alert('Payment request REJECTED!'); loadInitialData(); return;
+        }
+        // Find main enrollment doc for this student + course
+        const eSnap = await getDocs(query(collection(db, 'enrollments'),
+            where('studentId', '==', pr.studentId), where('courseId', '==', pr.courseId), where('status', '==', 'ENROLLED')));
+        if (eSnap.empty) { alert("No active enrollment found for this student/course."); return; }
+        const enrollDoc = eSnap.docs[0];
+        const existingPaid: number[] = enrollDoc.data().paidMonths || [];
+        const monthSet = new Set(existingPaid);
+        monthSet.add(pr.monthNumber);
+        const updatedPaid = Array.from(monthSet).sort((a, b) => a - b);
+        await updateDoc(doc(db, 'enrollments', enrollDoc.id), { paidMonths: updatedPaid });
+        await updateDoc(doc(db, 'paymentRequests', pr.id), { status: 'APPROVED', auditTrail: `Approved by Admin on ${new Date().toISOString()}` });
+        alert(`Month ${pr.monthNumber} APPROVED! Total months now: ${updatedPaid.join(', ')}`);
+        loadInitialData();
+    };
+
+    const getPaymentLabel = (paymentType?: string, monthNumber?: number) => {
+        if (paymentType === 'FULL') return <span className="badge badge-success badge-sm font-bold">Full Fee</span>;
+        if (paymentType === 'MONTHLY') return <span className="badge badge-info badge-sm font-bold">Month {monthNumber}</span>;
+        return <span className="badge badge-ghost badge-sm">Legacy</span>;
+    };
+
+    const totalPending = pendingEnrollments.length + pendingPaymentRequests.length;
 
     return (
         <div className="min-h-screen bg-base-200 pb-12 font-sans">
@@ -86,35 +172,82 @@ export default function AdminDashboard() {
                 </div>
 
                 <div role="tablist" className="tabs tabs-boxed bg-base-100 p-1.5 rounded-2xl shadow w-fit">
-                    <button role="tab" className={`tab font-semibold ${activeTab === 'payments' ? 'tab-active' : ''}`} onClick={() => setActiveTab('payments')}>Payments <span className="badge badge-sm ml-1">{pendingEnrollments.length}</span></button>
+                    <button role="tab" className={`tab font-semibold ${activeTab === 'payments' ? 'tab-active' : ''}`} onClick={() => setActiveTab('payments')}>
+                        Payments <span className="badge badge-sm ml-1">{totalPending}</span>
+                    </button>
                     <button role="tab" className={`tab font-semibold ${activeTab === 'courses' ? 'tab-active' : ''}`} onClick={() => setActiveTab('courses')}>Courses</button>
                     <button role="tab" className={`tab font-semibold ${activeTab === 'users' ? 'tab-active' : ''}`} onClick={() => setActiveTab('users')}>Users</button>
                 </div>
 
                 {activeTab === 'payments' && (
-                    <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
-                        <div className="p-6 border-b border-base-300 flex items-center gap-3 text-primary">
-                            <div className="p-2 bg-primary/20 rounded-lg"><CreditCard className="w-6 h-6" /></div>
-                            <div><h2 className="card-title text-2xl font-black">Pending UPI Verifications</h2><p className="text-base-content/60 text-sm">Review payment proofs</p></div>
-                        </div>
-                        <div className="p-6">
-                            {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
-                                : pendingEnrollments.length === 0 ? <div className="text-center py-12 text-base-content/40 bg-base-200 rounded-2xl border-2 border-dashed border-base-300">No pending payments.</div>
-                                    : <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40"><th>Student</th><th>Course</th><th>UTR</th><th>Proof</th><th className="text-right">Actions</th></tr></thead>
-                                        <tbody>{pendingEnrollments.map(en => (
-                                            <tr key={en.id} className="hover">
-                                                <td className="font-bold">{getStudentName(en.studentId)}</td>
-                                                <td><span className="badge badge-primary badge-outline">{getCourseName(en.courseId)}</span></td>
-                                                <td><code className="bg-base-200 text-xs px-2 py-1 rounded">{en.paymentDetails.txnId}</code></td>
-                                                <td><a href={en.paymentDetails.screenshotUrl} target="_blank" rel="noreferrer" className="btn btn-xs btn-ghost text-primary gap-1">View <ExternalLink className="w-3 h-3" /></a></td>
-                                                <td className="text-right space-x-2">
-                                                    <button className="btn btn-sm btn-success" onClick={() => handleApproval(en.id, true)}><CheckCircle2 className="w-4 h-4" /> Approve</button>
-                                                    <button className="btn btn-sm btn-error" onClick={() => handleApproval(en.id, false)}><XCircle className="w-4 h-4" /> Reject</button>
-                                                </td>
-                                            </tr>
-                                        ))}</tbody></table></div>}
-                        </div>
-                    </div></div>)}
+                    <div className="space-y-6">
+                        {/* Initial Enrollments (PENDING) */}
+                        <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
+                            <div className="p-6 border-b border-base-300 flex items-center gap-3 text-primary">
+                                <div className="p-2 bg-primary/20 rounded-lg"><CreditCard className="w-6 h-6" /></div>
+                                <div>
+                                    <h2 className="card-title text-xl font-black">New Enrollments</h2>
+                                    <p className="text-base-content/60 text-sm">Verify initial enrollment payments</p>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+                                    : pendingEnrollments.length === 0
+                                        ? <div className="text-center py-8 text-base-content/40 bg-base-200 rounded-2xl border-2 border-dashed border-base-300">No pending enrollments.</div>
+                                        : <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40">
+                                            <th>Student</th><th>Course</th><th>Type</th><th>UTR</th><th>UPI</th><th>Proof</th><th className="text-right">Actions</th>
+                                        </tr></thead>
+                                            <tbody>{pendingEnrollments.map(en => (
+                                                <tr key={en.id} className="hover">
+                                                    <td className="font-bold">{getStudentName(en.studentId)}</td>
+                                                    <td><span className="badge badge-primary badge-outline">{getCourseName(en.courseId)}</span></td>
+                                                    <td>{getPaymentLabel(en.paymentType, en.monthNumber)}</td>
+                                                    <td><code className="bg-base-200 text-xs px-2 py-1 rounded">{en.paymentDetails?.txnId}</code></td>
+                                                    <td><span className="text-xs text-base-content/60">{en.paymentDetails?.upiId}</span></td>
+                                                    <td><a href={en.paymentDetails?.screenshotUrl} target="_blank" rel="noreferrer" className="btn btn-xs btn-ghost text-primary gap-1">View <ExternalLink className="w-3 h-3" /></a></td>
+                                                    <td className="text-right space-x-2">
+                                                        <button className="btn btn-sm btn-success" onClick={() => handleEnrollmentApproval(en, true)}><CheckCircle2 className="w-4 h-4" /> Approve</button>
+                                                        <button className="btn btn-sm btn-error" onClick={() => handleEnrollmentApproval(en, false)}><XCircle className="w-4 h-4" /> Reject</button>
+                                                    </td>
+                                                </tr>
+                                            ))}</tbody></table></div>}
+                            </div>
+                        </div></div>
+
+                        {/* Monthly Payment Requests */}
+                        <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
+                            <div className="p-6 border-b border-base-300 flex items-center gap-3 text-secondary">
+                                <div className="p-2 bg-secondary/20 rounded-lg"><Calendar className="w-6 h-6" /></div>
+                                <div>
+                                    <h2 className="card-title text-xl font-black">Monthly Payment Requests</h2>
+                                    <p className="text-base-content/60 text-sm">Unlock additional months for enrolled students</p>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-secondary" /></div>
+                                    : pendingPaymentRequests.length === 0
+                                        ? <div className="text-center py-8 text-base-content/40 bg-base-200 rounded-2xl border-2 border-dashed border-base-300">No pending month requests.</div>
+                                        : <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40">
+                                            <th>Student</th><th>Course</th><th>Month</th><th>UTR</th><th>UPI</th><th>Proof</th><th className="text-right">Actions</th>
+                                        </tr></thead>
+                                            <tbody>{pendingPaymentRequests.map(pr => (
+                                                <tr key={pr.id} className="hover">
+                                                    <td className="font-bold">{getStudentName(pr.studentId)}</td>
+                                                    <td><span className="badge badge-secondary badge-outline">{getCourseName(pr.courseId)}</span></td>
+                                                    <td><span className="badge badge-info badge-sm font-bold">Month {pr.monthNumber}</span></td>
+                                                    <td><code className="bg-base-200 text-xs px-2 py-1 rounded">{pr.paymentDetails?.txnId}</code></td>
+                                                    <td><span className="text-xs text-base-content/60">{pr.paymentDetails?.upiId}</span></td>
+                                                    <td><a href={pr.paymentDetails?.screenshotUrl} target="_blank" rel="noreferrer" className="btn btn-xs btn-ghost text-secondary gap-1">View <ExternalLink className="w-3 h-3" /></a></td>
+                                                    <td className="text-right space-x-2">
+                                                        <button className="btn btn-sm btn-success" onClick={() => handlePaymentRequestApproval(pr, true)}><CheckCircle2 className="w-4 h-4" /> Approve</button>
+                                                        <button className="btn btn-sm btn-error" onClick={() => handlePaymentRequestApproval(pr, false)}><XCircle className="w-4 h-4" /> Reject</button>
+                                                    </td>
+                                                </tr>
+                                            ))}</tbody></table></div>}
+                            </div>
+                        </div></div>
+                    </div>
+                )}
 
                 {activeTab === 'courses' && (
                     <div className="card bg-base-100 shadow-2xl max-w-3xl"><div className="card-body">
@@ -124,10 +257,32 @@ export default function AdminDashboard() {
                         </div>
                         <form onSubmit={handleCreateCourse} className="space-y-6">
                             <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Title</span></label><input value={courseTitle} onChange={e => setCourseTitle(e.target.value)} placeholder="e.g. Master React" className="input input-bordered w-full" required /></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest"><IndianRupee className="w-3 h-3 inline" /> Fee (₹)</span></label><input type="number" value={courseFee} onChange={e => setCourseFee(e.target.value)} placeholder="4999" className="input input-bordered" required /></div>
-                                <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest"><IndianRupee className="w-3 h-3 inline" /> Starting At</span></label><input value={startingAt} onChange={e => setStartingAt(e.target.value)} placeholder="599" className="input input-bordered" required /></div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest"><IndianRupee className="w-3 h-3 inline" /> Full Fee (₹)</span></label><input type="number" value={courseFee} onChange={e => setCourseFee(e.target.value)} placeholder="4999" className="input input-bordered" required /></div>
+                                <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest"><IndianRupee className="w-3 h-3 inline" /> Monthly Fee (₹)</span></label><input value={startingAt} onChange={e => setStartingAt(e.target.value)} placeholder="599" className="input input-bordered" required /></div>
+                                <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest"><Calendar className="w-3 h-3 inline" /> Duration (Months)</span></label><input type="number" min="1" max="24" value={durationMonths} onChange={e => setDurationMonths(e.target.value)} placeholder="3" className="input input-bordered" required /></div>
                             </div>
+
+                            {/* QR Code URLs */}
+                            <div className="bg-secondary/5 p-5 rounded-2xl space-y-4">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <QrCode className="w-4 h-4 text-secondary" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-secondary">Payment QR Code URLs</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="form-control">
+                                        <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Full Fee QR Image URL</span></label>
+                                        <input value={fullFeeQrUrl} onChange={e => setFullFeeQrUrl(e.target.value)} placeholder="https://..." className="input input-bordered" />
+                                    </div>
+                                    <div className="form-control">
+                                        <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Monthly Fee QR Image URL</span></label>
+                                        <input value={monthlyFeeQrUrl} onChange={e => setMonthlyFeeQrUrl(e.target.value)} placeholder="https://..." className="input input-bordered" />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-base-content/40 font-medium">Paste image URLs for each payment type. Students will see the matching QR during checkout.</p>
+                            </div>
+
                             <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Description</span></label><textarea value={courseDesc} onChange={e => setCourseDesc(e.target.value)} placeholder="What will students learn?" className="textarea textarea-bordered min-h-[120px]" required /></div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-primary/5 p-6 rounded-2xl">
                                 <div className="form-control"><label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Cover Image</span></label><input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="file-input file-input-bordered w-full" required /></div>
@@ -137,12 +292,12 @@ export default function AdminDashboard() {
                             </div>
                             <button type="submit" className="btn btn-primary w-full h-14 font-black uppercase tracking-widest" disabled={isCreating}>{isCreating ? 'UPLOADING...' : 'PUBLISH COURSE'}</button>
                         </form>
-                    </div></div>)}
+                    </div></div>
+                )}
 
                 {activeTab === 'users' && (
                     <div className="space-y-8">
                         <div className="relative max-w-md"><Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-base-content/30" /><input placeholder="Search..." className="input input-bordered w-full pl-12 h-14" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-
                         <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
                             <div className="flex items-center justify-between p-6 border-b border-base-300"><div className="flex items-center gap-3"><div className="p-2 bg-primary/20 text-primary rounded-lg"><Users className="w-5 h-5" /></div><h2 className="card-title text-xl font-black">Trainers ({trainers.length})</h2></div><span className="badge badge-primary">Faculty</span></div>
                             <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40"><th>Identity</th><th>Assigned</th><th className="text-right">Role</th></tr></thead>
@@ -152,7 +307,6 @@ export default function AdminDashboard() {
                                         <td className="text-right"><select className="select select-sm select-bordered w-[130px] font-bold text-xs" defaultValue={t.role} onChange={e => handleRoleUpdate(t.uid, e.target.value)}><option value="STUDENT">Student</option><option value="TRAINER">Trainer</option><option value="ADMIN">Admin</option></select></td></tr>
                                 ))}</tbody></table></div>
                         </div></div>
-
                         <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
                             <div className="flex items-center justify-between p-6 border-b border-base-300"><div className="flex items-center gap-3"><div className="p-2 bg-success/20 text-success rounded-lg"><Users className="w-5 h-5" /></div><h2 className="card-title text-xl font-black">Students ({studentsList.length})</h2></div><span className="badge badge-success">Learners</span></div>
                             <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40"><th>Identity</th><th>Progress</th><th className="text-right">Role</th></tr></thead>
@@ -163,7 +317,8 @@ export default function AdminDashboard() {
                                         <td className="text-right"><select className="select select-sm select-bordered w-[130px] font-bold text-xs" defaultValue={s.role} onChange={e => handleRoleUpdate(s.uid, e.target.value)}><option value="STUDENT">Student</option><option value="TRAINER">Trainer</option><option value="ADMIN">Admin</option></select></td></tr>);
                                 })}</tbody></table></div>
                         </div></div>
-                    </div>)}
+                    </div>
+                )}
             </div>
         </div>
     );
