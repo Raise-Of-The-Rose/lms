@@ -10,6 +10,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import CourseConsumption from './pages/CourseConsumption';
 import TrainerDashboard from './pages/TrainerDashboard';
+import LandingPage from './pages/LandingPage';
 
 const Unauthorized = () => <div className="min-h-screen flex items-center justify-center bg-base-200 text-base-content text-lg font-bold">You do not have permission to view this page.</div>;
 
@@ -23,7 +24,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<LandingPage />} />
 
             <Route element={<ProtectedRoute allowedRoles={['STUDENT', 'ADMIN', 'TRAINER']} />}>
               <Route path="/course/:courseId" element={<CourseConsumption />} />

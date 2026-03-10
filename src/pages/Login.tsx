@@ -51,7 +51,7 @@ export default function Login() {
     const handleRoleRedirection = (role: string | null) => {
         if (role === 'ADMIN') navigate('/admin');
         else if (role === 'TRAINER') navigate('/trainer');
-        else navigate('/dashboard');
+        else navigate('/');
     };
 
     const onSubmit = async (data: LoginFormValues) => {

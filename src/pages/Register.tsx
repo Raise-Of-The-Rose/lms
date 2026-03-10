@@ -11,6 +11,7 @@ import { Loader2 } from 'lucide-react';
 const registerSchema = z.object({
     name: z.string().min(2, 'Name must be at least 2 characters'),
     email: z.string().email('Invalid email address'),
+    mobile: z.string().min(10, 'Mobile number must be at least 10 digits'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
@@ -23,7 +24,7 @@ export default function Register() {
 
     const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
         resolver: zodResolver(registerSchema),
-        defaultValues: { name: "", email: "", password: "" }
+        defaultValues: { name: "", email: "", mobile: "", password: "" }
     });
 
     const onSubmit = async (data: RegisterFormValues) => {
@@ -33,10 +34,10 @@ export default function Register() {
             const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
             const user = userCredential.user;
             await setDoc(doc(db, 'users', user.uid), {
-                uid: user.uid, email: data.email, displayName: data.name,
+                uid: user.uid, email: data.email, displayName: data.name, mobile: data.mobile,
                 role: 'STUDENT', createdAt: new Date(),
             });
-            navigate('/dashboard');
+            navigate('/');
         } catch (err: any) {
             setError(getFriendlyErrorMessage(err.code));
         } finally {
@@ -54,12 +55,13 @@ export default function Register() {
             const userDocRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userDocRef);
             if (!userDoc.exists()) {
+                // For Google Auth we might not have a mobile number initially, but we save what we have
                 await setDoc(userDocRef, {
-                    uid: user.uid, email: user.email, displayName: user.displayName || 'User',
+                    uid: user.uid, email: user.email, displayName: user.displayName || 'User', mobile: '',
                     role: 'STUDENT', createdAt: new Date(),
                 });
             }
-            navigate('/dashboard');
+            navigate('/');
         } catch (err: any) {
             setError(getFriendlyErrorMessage(err.code));
         } finally {
@@ -99,6 +101,12 @@ export default function Register() {
                             <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Email Address</span></label>
                             <input type="email" placeholder="name@example.com" className="input input-bordered w-full" {...register('email')} />
                             {errors.email && <p className="text-error text-xs font-bold mt-1">{errors.email.message}</p>}
+                        </div>
+
+                        <div className="form-control">
+                            <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Mobile Number</span></label>
+                            <input type="tel" placeholder="+91 **********" className="input input-bordered w-full" {...register('mobile')} />
+                            {errors.mobile && <p className="text-error text-xs font-bold mt-1">{errors.mobile.message}</p>}
                         </div>
 
                         <div className="form-control">

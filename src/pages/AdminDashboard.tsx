@@ -13,6 +13,7 @@ interface Enrollment {
     monthNumber?: number;
     paidMonths?: number[];
     paymentDetails: { txnId: string; upiId: string; screenshotUrl: string; };
+    enrolledAt?: any;
 }
 interface PaymentRequest {
     id: string;
@@ -22,7 +23,7 @@ interface PaymentRequest {
     status: string;
     paymentDetails: { txnId: string; upiId: string; screenshotUrl: string; };
 }
-interface UserProfile { uid: string; displayName: string; email?: string; role: 'STUDENT' | 'TRAINER' | 'ADMIN'; }
+interface UserProfile { uid: string; displayName: string; email?: string; role: 'STUDENT' | 'TRAINER' | 'ADMIN'; mobile?: string; }
 interface Course { id: string; title: string; trainerId: string; fee: string; startingAt: string; durationMonths?: number; }
 
 export default function AdminDashboard() {
@@ -55,8 +56,9 @@ export default function AdminDashboard() {
             setAllEnrollments(allEnrolls);
             setPendingEnrollments(allEnrolls.filter(e => e.status === 'PENDING'));
 
-            const prSnap = await getDocs(query(collection(db, 'paymentRequests'), where('status', '==', 'PENDING')));
-            setPendingPaymentRequests(prSnap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentRequest[]);
+            const prSnap = await getDocs(collection(db, 'paymentRequests'));
+            const prDocs = prSnap.docs.map(d => ({ id: d.id, ...d.data() })) as PaymentRequest[];
+            setPendingPaymentRequests(prDocs.filter(pr => pr.status === 'PENDING'));
 
             const userSnap = await getDocs(collection(db, 'users'));
             setAllUsers(userSnap.docs.map(d => ({ uid: d.id, ...d.data() })) as UserProfile[]);
@@ -157,6 +159,50 @@ export default function AdminDashboard() {
 
     const totalPending = pendingEnrollments.length + pendingPaymentRequests.length;
 
+    // Monthly Payers List Computation
+    const monthlyPayersList = allEnrollments.map(en => {
+        if (en.paymentType !== 'MONTHLY' || en.status !== 'ENROLLED') return null;
+        const course = courses.find(c => c.id === en.courseId);
+        if (!course) return null;
+        const user = allUsers.find(u => u.uid === en.studentId);
+        if (!user) return null;
+
+        const paid = en.paidMonths || [];
+        let nextMonth = 1;
+        const duration = course.durationMonths || 1;
+        for (let i = 1; i <= duration; i++) {
+            if (!paid.includes(i)) {
+                nextMonth = i;
+                break;
+            }
+            if (i === duration) nextMonth = -1; // Fully paid
+        }
+
+        if (nextMonth === -1) return null; // Skip fully paid
+
+        const enrolledAtDate = en.enrolledAt?.toDate() || new Date(); // fallback to today if undefined
+
+        const dueDate = new Date(enrolledAtDate);
+        dueDate.setMonth(dueDate.getMonth() + (nextMonth - 1));
+
+        const lastPaidDate = new Date(enrolledAtDate);
+        if (nextMonth > 1) {
+            lastPaidDate.setMonth(lastPaidDate.getMonth() + (nextMonth - 2));
+        }
+
+        return {
+            id: en.id,
+            studentName: user.displayName,
+            email: user.email || 'N/A',
+            mobile: user.mobile || 'N/A',
+            courseName: course.title,
+            nextMonth,
+            lastPaidDate,
+            dueDate,
+        };
+    }).filter(Boolean)
+        .sort((a, b) => a!.dueDate.getTime() - b!.dueDate.getTime());
+
     return (
         <div className="min-h-screen bg-base-200 pb-12 font-sans">
             <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
@@ -241,6 +287,48 @@ export default function AdminDashboard() {
                                                     <td className="text-right space-x-2">
                                                         <button className="btn btn-sm btn-success" onClick={() => handlePaymentRequestApproval(pr, true)}><CheckCircle2 className="w-4 h-4" /> Approve</button>
                                                         <button className="btn btn-sm btn-error" onClick={() => handlePaymentRequestApproval(pr, false)}><XCircle className="w-4 h-4" /> Reject</button>
+                                                    </td>
+                                                </tr>
+                                            ))}</tbody></table></div>}
+                            </div>
+                        </div></div>
+
+                        {/* Monthly Payers List (Active Subscriptions) */}
+                        <div className="card bg-base-100 shadow-xl"><div className="card-body p-0">
+                            <div className="p-6 border-b border-base-300 flex items-center gap-3 text-accent">
+                                <div className="p-2 bg-accent/20 rounded-lg"><Users className="w-6 h-6" /></div>
+                                <div>
+                                    <h2 className="card-title text-xl font-black">Monthly Payers List</h2>
+                                    <p className="text-base-content/60 text-sm">Students actively paying on a monthly basis</p>
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                {loading ? <div className="flex justify-center p-8"><Loader2 className="animate-spin h-8 w-8 text-accent" /></div>
+                                    : monthlyPayersList.length === 0
+                                        ? <div className="text-center py-8 text-base-content/40 bg-base-200 rounded-2xl border-2 border-dashed border-base-300">No active monthly payers.</div>
+                                        : <div className="overflow-x-auto"><table className="table"><thead><tr className="text-[10px] font-black uppercase tracking-widest text-base-content/40">
+                                            <th>Student Details</th><th>Course</th><th>Contact</th><th>Last Paid</th><th>Due Date (Month)</th>
+                                        </tr></thead>
+                                            <tbody>{monthlyPayersList.map(payer => (
+                                                <tr key={payer!.id} className="hover">
+                                                    <td>
+                                                        <div className="font-bold">{payer!.studentName}</div>
+                                                        <div className="text-xs text-base-content/60">{payer!.email}</div>
+                                                    </td>
+                                                    <td><span className="badge badge-accent badge-outline">{payer!.courseName}</span></td>
+                                                    <td><span className="text-sm font-semibold tracking-wider">{payer!.mobile}</span></td>
+                                                    <td>
+                                                        <span className="text-xs font-medium">
+                                                            {payer!.nextMonth > 1 ? payer!.lastPaidDate.toLocaleDateString() : 'N/A (First Month)'}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className={`font-bold ${payer!.dueDate < new Date() ? 'text-error' : 'text-success'}`}>
+                                                                {payer!.dueDate.toLocaleDateString()}
+                                                            </span>
+                                                            <span className="badge badge-info badge-sm font-bold">Month {payer!.nextMonth}</span>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}</tbody></table></div>}
