@@ -7,7 +7,7 @@ import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, Ro
 import YouTube from 'react-youtube';
 
 interface Module { id: string; title: string; videoUrl: string; moduleGroupId?: string; monthNumber?: number; duration?: string; }
-interface ModuleGroup { id: string; name: string; monthNumber: number; }
+interface ModuleGroup { id: string; name: string; monthNumber: number; createdAt?: any; }
 interface Enrollment { id: string; progress: number; completedModules: string[]; status: string; paidMonths?: number[]; paymentType?: 'FULL' | 'MONTHLY'; }
 
 const getYouTubeId = (url: string) => {
@@ -30,6 +30,28 @@ const CustomVideoPlayer = ({ url, onEnded }: { url: string, onEnded: () => void 
     const [showQualityMenu, setShowQualityMenu] = useState(false);
     const [activePlayTime, setActivePlayTime] = useState(0);
     const [hasPassedInitial, setHasPassedInitial] = useState(false);
+    const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+        };
+    }, []);
+
+    const handleMouseMove = () => {
+        setIsHovering(true);
+        if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+        idleTimeoutRef.current = setTimeout(() => {
+            setIsHovering(false);
+            setShowQualityMenu(false);
+        }, 3000);
+    };
+
+    const handleMouseLeave = () => {
+        setIsHovering(false);
+        setShowQualityMenu(false);
+        if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+    };
 
     useEffect(() => {
         let interval: any;
@@ -49,8 +71,8 @@ const CustomVideoPlayer = ({ url, onEnded }: { url: string, onEnded: () => void 
     const isUIHidden = playing && hasPassedInitial && !isHovering;
 
     return (
-        <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden group shadow-2xl select-none"
-            onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => { setIsHovering(false); setShowQualityMenu(false); }}>
+        <div ref={containerRef} className={`relative w-full aspect-video bg-black rounded-2xl overflow-hidden group shadow-2xl select-none ${isUIHidden ? 'cursor-none' : ''}`}
+            onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
             <div className="absolute inset-0 z-0 scale-[1.01]">
                 <YouTube videoId={videoId || ''} opts={{ height: '100%', width: '100%', playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, disablekb: 1, origin: window.location.origin } }}
                     onReady={(e) => { setPlayer(e.target); setBuffering(false); }}
@@ -58,7 +80,7 @@ const CustomVideoPlayer = ({ url, onEnded }: { url: string, onEnded: () => void 
                     className="w-full h-full pointer-events-none" />
             </div>
             <div className={`absolute inset-0 z-20 bg-base-100 pointer-events-none ${(!playing || buffering || isForceEnded || (playing && !hasPassedInitial)) ? 'opacity-100 transition-none' : 'opacity-0 transition-opacity duration-700 delay-150'}`} />
-            <div className="absolute inset-0 z-30 flex items-center justify-center cursor-pointer" onClick={handlePlayPause}>
+            <div className={`absolute inset-0 z-30 flex items-center justify-center ${isUIHidden ? 'cursor-none' : 'cursor-pointer'}`} onClick={handlePlayPause}>
                 {buffering && <Loader2 className="w-8 h-8 text-primary animate-spin" />}
                 {(!playing || (playing && !hasPassedInitial)) && !buffering && !isForceEnded && (
                     <div className="flex flex-col items-center gap-3">
@@ -242,7 +264,12 @@ export default function CourseConsumption() {
                 // Fetch module groups
                 const gSnap = await getDocs(collection(db, `courses/${courseId}/moduleGroups`));
                 const groups = gSnap.docs.map(d => ({ id: d.id, ...d.data() } as ModuleGroup));
-                setModuleGroups(groups.sort((a, b) => a.monthNumber - b.monthNumber));
+                setModuleGroups(groups.sort((a, b) => {
+                    if (a.monthNumber !== b.monthNumber) return a.monthNumber - b.monthNumber;
+                    const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+                    const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+                    return tA - tB;
+                }));
 
                 // Fetch modules
                 const mSnap = await getDocs(query(collection(db, `courses/${courseId}/modules`), orderBy("createdAt", "asc")));

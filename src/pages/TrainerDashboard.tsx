@@ -19,6 +19,7 @@ interface ModuleGroup {
   name: string;
   monthNumber: number;
   videoCount?: number;
+  createdAt?: any;
 }
 
 interface StudentProgress {
@@ -65,7 +66,12 @@ export default function TrainerDashboard() {
       const vSnap = await getDocs(query(collection(db, `courses/${courseId}/modules`), where('moduleGroupId', '==', g.id)));
       return { ...g, videoCount: vSnap.size };
     }));
-    setModuleGroups(withCounts.sort((a, b) => a.monthNumber - b.monthNumber));
+    setModuleGroups(withCounts.sort((a, b) => {
+      if (a.monthNumber !== b.monthNumber) return a.monthNumber - b.monthNumber;
+      const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return tA - tB;
+    }));
   };
 
   useEffect(() => {
