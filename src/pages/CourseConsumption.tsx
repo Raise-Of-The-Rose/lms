@@ -11,7 +11,7 @@ interface ModuleGroup { id: string; name: string; monthNumber: number; }
 interface Enrollment { id: string; progress: number; completedModules: string[]; status: string; paidMonths?: number[]; paymentType?: 'FULL' | 'MONTHLY'; }
 
 const getYouTubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|live\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
 };
