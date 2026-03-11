@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, doc, updateDoc, addDoc, increment, d
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { Video, Users, LayoutDashboard, PlusCircle, Globe, Clock, CheckCircle2, Loader2, FolderPlus, Layers, Lock } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface Course {
   id: string;
@@ -50,6 +51,7 @@ export default function TrainerDashboard() {
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [moduleTitle, setModuleTitle] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [moduleDuration, setModuleDuration] = useState('');
   const [isAddingVideo, setIsAddingVideo] = useState(false);
 
   const selectedCourseData = assignedCourses.find(c => c.id === selectedCourse);
@@ -128,8 +130,11 @@ export default function TrainerDashboard() {
     setIsUpdating(true);
     try {
       await updateDoc(doc(db, 'courses', selectedCourse), { meetLink, meetTime });
-      alert("Live session details updated!");
-    } catch (error) { console.error("Error updating meet details:", error); }
+      toast.success("Live session details updated!");
+    } catch (error) { 
+        console.error("Error updating meet details:", error); 
+        toast.error("Error updating live session details");
+    }
     finally { setIsUpdating(false); }
   };
 
@@ -146,32 +151,39 @@ export default function TrainerDashboard() {
       setGroupName('');
       setGroupMonth('1');
       await fetchModuleGroups(selectedCourse);
-      alert(`Module group "${groupName}" created for Month ${groupMonth}!`);
-    } catch (error) { console.error(error); }
+      toast.success(`Module group "${groupName}" created for Month ${groupMonth}!`);
+    } catch (error) { 
+        console.error(error); 
+        toast.error("Failed to create module group");
+    }
     finally { setIsCreatingGroup(false); }
   };
 
   const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourse || !selectedGroupId) { alert("Select a module group first."); return; }
+    if (!selectedCourse || !selectedGroupId) { toast.error("Select a module group first."); return; }
     const isValidUrl = videoUrl.includes('youtu.be') || videoUrl.includes('youtube.com') || videoUrl.includes('drive.google.com') || videoUrl.includes('vimeo.com');
-    if (!isValidUrl) { alert("Please use valid YouTube, Vimeo, or Drive links."); return; }
+    if (!isValidUrl) { toast.error("Please use valid YouTube, Vimeo, or Drive links."); return; }
     setIsAddingVideo(true);
     try {
       const group = moduleGroups.find(g => g.id === selectedGroupId);
       await addDoc(collection(db, `courses/${selectedCourse}/modules`), {
         title: moduleTitle,
         videoUrl,
+        duration: moduleDuration,
         moduleGroupId: selectedGroupId,
         monthNumber: group?.monthNumber || 1,
         createdAt: new Date()
       });
       await updateDoc(doc(db, 'courses', selectedCourse), { totalModules: increment(1) });
-      setModuleTitle(''); setVideoUrl('');
+      setModuleTitle(''); setVideoUrl(''); setModuleDuration('');
       setAssignedCourses(courses => courses.map(c => c.id === selectedCourse ? { ...c, totalModules: c.totalModules + 1 } : c));
       await fetchModuleGroups(selectedCourse);
-      alert("Video published!");
-    } catch (error) { console.error(error); }
+      toast.success("Video published!");
+    } catch (error) { 
+        console.error(error); 
+        toast.error("Failed to publish video");
+    }
     finally { setIsAddingVideo(false); }
   };
 
@@ -322,6 +334,13 @@ export default function TrainerDashboard() {
                     <div className="form-control">
                       <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Secure Video Link</span></label>
                       <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} placeholder="YouTube, Drive, or Vimeo URL" className="input input-bordered w-full" required />
+                    </div>
+                    <div className="form-control">
+                      <label className="label"><span className="label-text text-[10px] font-black uppercase tracking-widest">Duration</span></label>
+                      <div className="relative">
+                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-base-content/30" size={16} />
+                        <input value={moduleDuration} onChange={e => setModuleDuration(e.target.value)} placeholder="e.g. 15 mins" className="input input-bordered w-full pl-12" />
+                      </div>
                     </div>
                     <button type="submit" disabled={isAddingVideo} className="btn btn-primary w-full font-black uppercase text-xs tracking-widest">
                       {isAddingVideo ? <Loader2 className="animate-spin h-5 w-5" /> : "Publish Video"}

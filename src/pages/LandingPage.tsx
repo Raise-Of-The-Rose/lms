@@ -312,6 +312,16 @@ export default function LandingPage() {
                     <Link to="/login" className="hover:text-primary transition-colors">Login</Link>
                     <Link to="/register" className="hover:text-primary transition-colors">Register</Link>
                 </div>
+                <div className="flex justify-center gap-6 mt-6">
+                    <a href="https://whatsapp.com/channel/0029VbCVniyCsU9IMz3Hyq3C" target="_blank" rel="noreferrer" className="text-base-content/60 hover:text-[#25D366] transition-colors flex items-center gap-2 text-sm font-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.65-3.8A9 9 0 1 1 21 12a9 9 0 0 1-9 9c-1.28 0-2.52-.27-3.65-.77L3 21z"/><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1"/></svg>
+                        WhatsApp Channel
+                    </a>
+                    <a href="https://youtube.com/@learnearn-z5y" target="_blank" rel="noreferrer" className="text-base-content/60 hover:text-[#FF0000] transition-colors flex items-center gap-2 text-sm font-semibold">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33 2.78 2.78 0 0 0 1.94 2c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>
+                        YouTube Channel
+                    </a>
+                </div>
             </footer>
         </div>
     );

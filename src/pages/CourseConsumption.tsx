@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, RotateCw, Settings2, Radio, Lock, ChevronDown, ChevronRight, IndianRupee } from 'lucide-react';
+import { CheckCircle, Play, Pause, Maximize, Loader2, ShieldAlert, RotateCcw, RotateCw, Settings2, Radio, Lock, ChevronDown, ChevronRight, IndianRupee, AlertTriangle } from 'lucide-react';
 import YouTube from 'react-youtube';
 
-interface Module { id: string; title: string; videoUrl: string; moduleGroupId?: string; monthNumber?: number; }
+interface Module { id: string; title: string; videoUrl: string; moduleGroupId?: string; monthNumber?: number; duration?: string; }
 interface ModuleGroup { id: string; name: string; monthNumber: number; }
 interface Enrollment { id: string; progress: number; completedModules: string[]; status: string; paidMonths?: number[]; paymentType?: 'FULL' | 'MONTHLY'; }
 
@@ -204,6 +204,7 @@ const MonthSection = ({
                                         </div>
                                         <div className="flex flex-col flex-grow min-w-0">
                                             <span className={`text-xs font-bold leading-snug tracking-wide ${isCompleted ? 'text-base-content/40 line-through' : isActive ? 'text-primary' : 'text-base-content'}`}>{m.title}</span>
+                                            {m.duration && <span className="text-[10px] text-base-content/60 font-medium mt-0.5">{m.duration}</span>}
                                             {isActive && <span className="text-[9px] uppercase font-bold tracking-widest text-primary mt-0.5">Now Playing</span>}
                                         </div>
                                         {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />}
@@ -217,6 +218,8 @@ const MonthSection = ({
         </div>
     );
 };
+
+import { toast } from 'react-hot-toast';
 
 export default function CourseConsumption() {
     const { courseId } = useParams<{ courseId: string }>();
@@ -264,7 +267,10 @@ export default function CourseConsumption() {
                 } else {
                     navigate('/dashboard');
                 }
-            } catch (e) { console.error(e); } finally { setLoading(false); }
+            } catch (e) {
+                console.error(e);
+                toast.error("Failed to load course details.");
+            } finally { setLoading(false); }
         };
         fetchData();
     }, [courseId, currentUser, navigate]);
@@ -342,6 +348,10 @@ export default function CourseConsumption() {
                         {activeModule && (
                             <div className="space-y-6">
                                 <CustomVideoPlayer key={activeModule.id} url={activeModule.videoUrl} onEnded={() => handleMarkComplete(activeModule.id)} />
+                                <div className="alert alert-warning text-[10px] sm:text-xs font-bold p-3 sm:p-4 rounded-xl shadow-sm text-left flex items-start sm:items-center gap-3">
+                                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                                    <span><strong>Please Note:</strong> Watch the video in a single attempt. You cannot resume playback where you left off.</span>
+                                </div>
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 bg-base-100 rounded-2xl shadow gap-4">
                                     <div>
                                         <h4 className="text-sm font-black text-base-content uppercase tracking-widest">Module Progress</h4>
@@ -410,6 +420,7 @@ export default function CourseConsumption() {
                                                         </div>
                                                         <div className="flex flex-col flex-grow">
                                                             <span className={`text-xs font-bold leading-snug tracking-wide ${isCompleted ? 'text-base-content/40 line-through' : isActive ? 'text-primary' : 'text-base-content'}`}>{m.title}</span>
+                                                            {m.duration && <span className="text-[10px] text-base-content/60 font-medium mt-0.5">{m.duration}</span>}
                                                             {isActive && <span className="text-[9px] uppercase font-bold tracking-widest text-primary mt-1">Playing</span>}
                                                         </div>
                                                         {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full"></div>}

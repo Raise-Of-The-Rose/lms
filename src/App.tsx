@@ -12,6 +12,8 @@ import CourseConsumption from './pages/CourseConsumption';
 import TrainerDashboard from './pages/TrainerDashboard';
 import LandingPage from './pages/LandingPage';
 
+import { Toaster } from 'react-hot-toast';
+
 const Unauthorized = () => <div className="min-h-screen flex items-center justify-center bg-base-200 text-base-content text-lg font-bold">You do not have permission to view this page.</div>;
 
 function App() {
@@ -19,6 +21,7 @@ function App() {
     <ThemeProvider defaultTheme="light">
       <AuthProvider>
         <ThemeSwitcher />
+        <Toaster position="top-center" />
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />

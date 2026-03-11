@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp, getDoc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Search, PlusCircle, Users, BookOpen, CreditCard, CheckCircle2, XCircle, ExternalLink, Sparkles, IndianRupee, Loader2, Calendar, QrCode } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface Enrollment {
     id: string;
@@ -69,8 +70,15 @@ export default function AdminDashboard() {
     useEffect(() => { loadInitialData(); }, []);
 
     const handleRoleUpdate = async (uid: string, newRole: string) => {
-        try { await updateDoc(doc(db, 'users', uid), { role: newRole }); alert("Role updated!"); loadInitialData(); }
-        catch (e) { console.error(e); alert("Failed."); }
+        try { 
+            await updateDoc(doc(db, 'users', uid), { role: newRole }); 
+            toast.success("Role updated!"); 
+            loadInitialData(); 
+        }
+        catch (e) { 
+            console.error(e); 
+            toast.error("Failed to update role"); 
+        }
     };
     const filteredUsers = allUsers.filter(u => u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase()));
     const trainers = filteredUsers.filter(u => u.role === 'TRAINER');
@@ -86,9 +94,9 @@ export default function AdminDashboard() {
 
     const handleCreateCourse = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!imageFile || !selectedTrainer) { alert("Select image and trainer."); return; }
+        if (!imageFile || !selectedTrainer) { toast.error("Select image and trainer."); return; }
         const months = parseInt(durationMonths);
-        if (isNaN(months) || months < 1) { alert("Enter a valid course duration (months)."); return; }
+        if (isNaN(months) || months < 1) { toast.error("Enter a valid course duration (months)."); return; }
         setIsCreating(true);
         try {
             const imageUrl = await uploadToCloudinary(imageFile);
@@ -100,19 +108,22 @@ export default function AdminDashboard() {
                 monthlyFeeQrUrl: monthlyFeeQrUrl.trim() || '',
                 createdAt: serverTimestamp()
             });
-            alert("Course created!");
+            toast.success("Course created!");
             setCourseTitle(''); setCourseDesc(''); setCourseFee(''); setStartingAt('');
             setDurationMonths('3'); setSelectedTrainer(''); setImageFile(null);
             setFullFeeQrUrl(''); setMonthlyFeeQrUrl('');
             loadInitialData();
-        } catch (e) { console.error(e); } finally { setIsCreating(false); }
+        } catch (e) { 
+            console.error(e);
+            toast.error("Failed to create course");
+        } finally { setIsCreating(false); }
     };
 
     // Approve initial enrollment (PENDING → ENROLLED)
     const handleEnrollmentApproval = async (enrollment: Enrollment, approved: boolean) => {
         if (!approved) {
             await updateDoc(doc(db, 'enrollments', enrollment.id), { status: 'REJECTED', auditTrail: `Rejected ${new Date().toISOString()}` });
-            alert('Enrollment REJECTED!'); loadInitialData(); return;
+            toast.success('Enrollment REJECTED!'); loadInitialData(); return;
         }
         const courseDoc = await getDoc(doc(db, 'courses', enrollment.courseId));
         const totalMonths = courseDoc.data()?.durationMonths || 1;
@@ -126,7 +137,7 @@ export default function AdminDashboard() {
             status: 'ENROLLED', paidMonths: newPaidMonths,
             auditTrail: `Approved by Admin on ${new Date().toISOString()}`
         });
-        alert(`Enrollment APPROVED! Months unlocked: ${newPaidMonths.join(', ')}`);
+        toast.success(`Enrollment APPROVED! Months unlocked: ${newPaidMonths.join(', ')}`);
         loadInitialData();
     };
 
@@ -134,12 +145,12 @@ export default function AdminDashboard() {
     const handlePaymentRequestApproval = async (pr: PaymentRequest, approved: boolean) => {
         if (!approved) {
             await updateDoc(doc(db, 'paymentRequests', pr.id), { status: 'REJECTED', auditTrail: `Rejected ${new Date().toISOString()}` });
-            alert('Payment request REJECTED!'); loadInitialData(); return;
+            toast.success('Payment request REJECTED!'); loadInitialData(); return;
         }
         // Find main enrollment doc for this student + course
         const eSnap = await getDocs(query(collection(db, 'enrollments'),
             where('studentId', '==', pr.studentId), where('courseId', '==', pr.courseId), where('status', '==', 'ENROLLED')));
-        if (eSnap.empty) { alert("No active enrollment found for this student/course."); return; }
+        if (eSnap.empty) { toast.error("No active enrollment found for this student/course."); return; }
         const enrollDoc = eSnap.docs[0];
         const existingPaid: number[] = enrollDoc.data().paidMonths || [];
         const monthSet = new Set(existingPaid);
@@ -147,7 +158,7 @@ export default function AdminDashboard() {
         const updatedPaid = Array.from(monthSet).sort((a, b) => a - b);
         await updateDoc(doc(db, 'enrollments', enrollDoc.id), { paidMonths: updatedPaid });
         await updateDoc(doc(db, 'paymentRequests', pr.id), { status: 'APPROVED', auditTrail: `Approved by Admin on ${new Date().toISOString()}` });
-        alert(`Month ${pr.monthNumber} APPROVED! Total months now: ${updatedPaid.join(', ')}`);
+        toast.success(`Month ${pr.monthNumber} APPROVED! Total months now: ${updatedPaid.join(', ')}`);
         loadInitialData();
     };
 
